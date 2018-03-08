@@ -28,7 +28,6 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.media.SoundPool;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
@@ -43,7 +42,6 @@ import android.speech.tts.TextToSpeech;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.util.Log;
-import android.util.SparseIntArray;
 import android.view.Menu;
 import android.view.OrientationEventListener;
 import android.view.View;
@@ -73,7 +71,6 @@ public class MainActivity extends Activity {
     // application shortcuts:
     private final Map<Integer, Bitmap> preloaded_bitmap_resources = new Hashtable<>();
     private final ToastBoxer switch_video_toast = new ToastBoxer();
-    private final ToastBoxer screen_locked_toast = new ToastBoxer();
     private final PreferencesListener preferencesListener = new PreferencesListener();
     final private int MY_PERMISSIONS_REQUEST_CAMERA = 0;
     final private int MY_PERMISSIONS_REQUEST_STORAGE = 1;
@@ -117,13 +114,11 @@ public class MainActivity extends Activity {
     private boolean supports_auto_stabilise;
     private boolean supports_force_video_4k;
     private boolean supports_camera2;
-    private SaveLocationHistory save_location_history; // save location for non-SAF
-    private SaveLocationHistory save_location_history_saf; // save location for SAF (only initialised when SAF is used)
+
     private boolean saf_dialog_from_preferences; // if a SAF dialog is opened, this records whether we opened it from the Preferences
     private boolean camera_in_background; // whether the camera is covered by a fragment/dialog (such as settings or folder picker)
     private ValueAnimator gallery_save_anim;
-    private SoundPool sound_pool;
-    private SparseIntArray sound_ids;
+
     private TextToSpeech textToSpeech;
     private int audio_noise_sensitivity = -1;
     private boolean block_startup_toast = false; // used when returning from Settings/Popup - if we're displaying a toast anyway, don't want to display the info toast too
@@ -207,12 +202,6 @@ public class MainActivity extends Activity {
         if (MyDebug.LOG)
             Log.d(TAG, "onCreate: time after setting window flags: " + (System.currentTimeMillis() - debug_time));
 
-        save_location_history = new SaveLocationHistory(this, "save_location_history", getStorageUtils().getSaveLocation());
-        if (applicationInterface.getStorageUtils().isUsingSAF()) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "create new SaveLocationHistory for SAF");
-            save_location_history_saf = new SaveLocationHistory(this, "save_location_history_saf", getStorageUtils().getSaveLocationSAF());
-        }
         if (MyDebug.LOG)
             Log.d(TAG, "onCreate: time after updating folder history: " + (System.currentTimeMillis() - debug_time));
 
@@ -274,15 +263,6 @@ public class MainActivity extends Activity {
             Log.d(TAG, "onCreate: time after setting orientation event listener: " + (System.currentTimeMillis() - debug_time));
 
         // set up gallery button long click
-        View galleryButton = findViewById(R.id.gallery);
-        galleryButton.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                //preview.showToast(null, "Long click");
-                longClickedGallery();
-                return true;
-            }
-        });
         if (MyDebug.LOG)
             Log.d(TAG, "onCreate: time after setting gallery long click listener: " + (System.currentTimeMillis() - debug_time));
 
@@ -442,8 +422,8 @@ public class MainActivity extends Activity {
             editor.putBoolean(PreferenceKeys.Camera2FakeFlashPreferenceKey, true);
             editor.apply();
         }
-		/*if( is_nexus6 ) {
-			// Nexus 6 captureBurst() started having problems with Android 7 upgrade - images appeared in wrong order (and with wrong order of shutter speeds in exif info), as well as problems with the camera failing with serious errors
+        /*if( is_nexus6 ) {
+            // Nexus 6 captureBurst() started having problems with Android 7 upgrade - images appeared in wrong order (and with wrong order of shutter speeds in exif info), as well as problems with the camera failing with serious errors
 			// we set this even for Nexus 6 devices not on Android 7, as at some point they'll likely be upgraded to Android 7
 			// Update: now fixed in v1.37, this was due to bug where we set RequestTag.CAPTURE for all captures in takePictureBurstExpoBracketing(), rather than just the last!
 			if( MyDebug.LOG )
@@ -454,7 +434,7 @@ public class MainActivity extends Activity {
 		}*/
     }
 
-   /**
+    /**
      * Determine whether we support Camera2 API.
      */
     private void initCamera2Support() {
@@ -801,21 +781,14 @@ public class MainActivity extends Activity {
         }
     }
 
-    private MyPreferenceFragment getPreferenceFragment() {
-        return (MyPreferenceFragment) getFragmentManager().findFragmentByTag("PREFERENCE_FRAGMENT");
-    }
 
     @Override
     public void onBackPressed() {
-        final MyPreferenceFragment fragment = getPreferenceFragment();
-        if (fragment != null) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "close settings");
-            setWindowFlagsForCamera();
+        if (MyDebug.LOG)
+            Log.d(TAG, "close settings");
+        setWindowFlagsForCamera();
 
-            preferencesListener.stopListening();
-
-        }
+        preferencesListener.stopListening();
         super.onBackPressed();
     }
 
@@ -1244,20 +1217,6 @@ public class MainActivity extends Activity {
         startActivityForResult(intent, 42);
     }
 
-    /**
-     * Call when the SAF save history has been updated.
-     * This is only public so we can call from testing.
-     *
-     * @param save_folder The new SAF save folder Uri.
-     */
-    public void updateFolderHistorySAF(String save_folder) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "updateSaveHistorySAF");
-        if (save_location_history_saf == null) {
-            save_location_history_saf = new SaveLocationHistory(this, "save_location_history_saf", save_folder);
-        }
-        save_location_history_saf.updateFolderHistory(save_folder, true);
-    }
 
     /**
      * Listens for the response from the Storage Access Framework dialog to select a folder
@@ -1287,9 +1246,6 @@ public class MainActivity extends Activity {
                     editor.putString(PreferenceKeys.getSaveLocationSAFPreferenceKey(), treeUri.toString());
                     editor.apply();
 
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "update folder history for saf");
-                    updateFolderHistorySAF(treeUri.toString());
 
                     File file = applicationInterface.getStorageUtils().getImageFolder();
                     if (file != null) {
@@ -1347,180 +1303,9 @@ public class MainActivity extends Activity {
                 editor.putString(PreferenceKeys.getSaveLocationPreferenceKey(), new_save_location);
                 editor.apply();
 
-                this.save_location_history.updateFolderHistory(this.getStorageUtils().getSaveLocation(), true);
                 this.preview.showToast(null, getResources().getString(R.string.changed_save_location) + "\n" + this.applicationInterface.getStorageUtils().getSaveLocation());
             }
         }
-    }
-
-    /**
-     * Opens Open Camera's own (non-Storage Access Framework) dialog to select a folder.
-     */
-    private void openFolderChooserDialog() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "openFolderChooserDialog");
-        showPreview(false);
-        setWindowFlagsForSettings();
-        FolderChooserDialog fragment = new MyFolderChooserDialog();
-        // use commitAllowingStateLoss() instead of fragment.show(), does to "java.lang.IllegalStateException: Can not perform this action after onSaveInstanceState" crash seen on Google Play
-        // see https://stackoverflow.com/questions/14262312/java-lang-illegalstateexception-can-not-perform-this-action-after-onsaveinstanc
-        //fragment.show(getFragmentManager(), "FOLDER_FRAGMENT");
-        getFragmentManager().beginTransaction().add(fragment, "FOLDER_FRAGMENT").commitAllowingStateLoss();
-    }
-
-    /**
-     * User can long-click on gallery to select a recent save location from the history, of if not available,
-     * go straight to the file dialog to pick a folder.
-     */
-    private void longClickedGallery() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "longClickedGallery");
-        if (applicationInterface.getStorageUtils().isUsingSAF()) {
-            if (save_location_history_saf == null || save_location_history_saf.size() <= 1) {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "go straight to choose folder dialog for SAF");
-                openFolderChooserDialogSAF(false);
-                return;
-            }
-        } else {
-            if (save_location_history.size() <= 1) {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "go straight to choose folder dialog");
-                openFolderChooserDialog();
-                return;
-            }
-        }
-
-        final SaveLocationHistory history = applicationInterface.getStorageUtils().isUsingSAF() ? save_location_history_saf : save_location_history;
-        showPreview(false);
-        AlertDialog.Builder alertDialog = new AlertDialog.Builder(this);
-        alertDialog.setTitle(R.string.choose_save_location);
-        CharSequence[] items = new CharSequence[history.size() + 2];
-        int index = 0;
-        // history is stored in order most-recent-last
-        for (int i = 0; i < history.size(); i++) {
-            String folder_name = history.get(history.size() - 1 - i);
-            if (applicationInterface.getStorageUtils().isUsingSAF()) {
-                // try to get human readable form if possible
-                File file = applicationInterface.getStorageUtils().getFileFromDocumentUriSAF(Uri.parse(folder_name), true);
-                if (file != null) {
-                    folder_name = file.getAbsolutePath();
-                }
-            }
-            items[index++] = folder_name;
-        }
-        final int clear_index = index;
-        items[index++] = getResources().getString(R.string.clear_folder_history);
-        final int new_index = index;
-        items[index++] = getResources().getString(R.string.choose_another_folder);
-        alertDialog.setItems(items, new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                if (which == clear_index) {
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "selected clear save history");
-                    new AlertDialog.Builder(MainActivity.this)
-                            .setIcon(android.R.drawable.ic_dialog_alert)
-                            .setTitle(R.string.clear_folder_history)
-                            .setMessage(R.string.clear_folder_history_question)
-                            .setPositiveButton(R.string.answer_yes, new DialogInterface.OnClickListener() {
-                                @Override
-                                public void onClick(DialogInterface dialog, int which) {
-                                    if (MyDebug.LOG)
-                                        Log.d(TAG, "confirmed clear save history");
-                                    if (applicationInterface.getStorageUtils().isUsingSAF())
-                                        clearFolderHistorySAF();
-                                    else
-                                        clearFolderHistory();
-                                    setWindowFlagsForCamera();
-                                    showPreview(true);
-                                }
-                            })
-                            .setNegativeButton(R.string.answer_no, new DialogInterface.OnClickListener() {
-                                @Override
-                                public void onClick(DialogInterface dialog, int which) {
-                                    if (MyDebug.LOG)
-                                        Log.d(TAG, "don't clear save history");
-                                    setWindowFlagsForCamera();
-                                    showPreview(true);
-                                }
-                            })
-                            .setOnCancelListener(new DialogInterface.OnCancelListener() {
-                                @Override
-                                public void onCancel(DialogInterface arg0) {
-                                    if (MyDebug.LOG)
-                                        Log.d(TAG, "cancelled clear save history");
-                                    setWindowFlagsForCamera();
-                                    showPreview(true);
-                                }
-                            })
-                            .show();
-                } else if (which == new_index) {
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "selected choose new folder");
-                    if (applicationInterface.getStorageUtils().isUsingSAF()) {
-                        openFolderChooserDialogSAF(false);
-                    } else {
-                        openFolderChooserDialog();
-                    }
-                } else {
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "selected: " + which);
-                    if (which >= 0 && which < history.size()) {
-                        String save_folder = history.get(history.size() - 1 - which);
-                        if (MyDebug.LOG)
-                            Log.d(TAG, "changed save_folder from history to: " + save_folder);
-                        String save_folder_name = save_folder;
-                        if (applicationInterface.getStorageUtils().isUsingSAF()) {
-                            // try to get human readable form if possible
-                            File file = applicationInterface.getStorageUtils().getFileFromDocumentUriSAF(Uri.parse(save_folder), true);
-                            if (file != null) {
-                                save_folder_name = file.getAbsolutePath();
-                            }
-                        }
-                        preview.showToast(null, getResources().getString(R.string.changed_save_location) + "\n" + save_folder_name);
-                        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
-                        SharedPreferences.Editor editor = sharedPreferences.edit();
-                        if (applicationInterface.getStorageUtils().isUsingSAF())
-                            editor.putString(PreferenceKeys.getSaveLocationSAFPreferenceKey(), save_folder);
-                        else
-                            editor.putString(PreferenceKeys.getSaveLocationPreferenceKey(), save_folder);
-                        editor.apply();
-                        history.updateFolderHistory(save_folder, true); // to move new selection to most recent
-                    }
-                    setWindowFlagsForCamera();
-                    showPreview(true);
-                }
-            }
-        });
-        alertDialog.setOnCancelListener(new DialogInterface.OnCancelListener() {
-            @Override
-            public void onCancel(DialogInterface arg0) {
-                setWindowFlagsForCamera();
-                showPreview(true);
-            }
-        });
-        //getWindow().setLayout(LayoutParams.FILL_PARENT, LayoutParams.FILL_PARENT);
-        setWindowFlagsForSettings();
-        showAlert(alertDialog.create());
-    }
-
-    /**
-     * Clears the non-SAF folder history.
-     */
-    public void clearFolderHistory() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "clearFolderHistory");
-        save_location_history.clearFolderHistory(getStorageUtils().getSaveLocation());
-    }
-
-    /**
-     * Clears the SAF folder history.
-     */
-    public void clearFolderHistorySAF() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "clearFolderHistorySAF");
-        save_location_history_saf.clearFolderHistory(getStorageUtils().getSaveLocationSAF());
     }
 
     /**
