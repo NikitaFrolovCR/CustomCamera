@@ -1,18 +1,5 @@
 package net.sourceforge.opencamera.UI;
 
-import java.text.DateFormat;
-import java.text.DecimalFormat;
-import java.util.Calendar;
-import java.util.Locale;
-
-import net.sourceforge.opencamera.GyroSensor;
-import net.sourceforge.opencamera.MainActivity;
-import net.sourceforge.opencamera.MyApplicationInterface;
-import net.sourceforge.opencamera.MyDebug;
-import net.sourceforge.opencamera.PreferenceKeys;
-import net.sourceforge.opencamera.R;
-import net.sourceforge.opencamera.CameraController.CameraController;
-import net.sourceforge.opencamera.Preview.Preview;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -32,6 +19,20 @@ import android.util.Pair;
 import android.view.Surface;
 import android.view.View;
 
+import net.sourceforge.opencamera.CameraController.CameraController;
+import net.sourceforge.opencamera.GyroSensor;
+import net.sourceforge.opencamera.MainActivity;
+import net.sourceforge.opencamera.MyApplicationInterface;
+import net.sourceforge.opencamera.MyDebug;
+import net.sourceforge.opencamera.PreferenceKeys;
+import net.sourceforge.opencamera.Preview.Preview;
+import net.sourceforge.opencamera.R;
+
+import java.text.DateFormat;
+import java.text.DecimalFormat;
+import java.util.Calendar;
+import java.util.Locale;
+
 public class DrawPreview {
 	private static final String TAG = "DrawPreview";
 
@@ -43,7 +44,7 @@ public class DrawPreview {
 
 	// cached preferences (need to call updateSettings() to refresh):
 	private boolean has_settings;
-	private MyApplicationInterface.PhotoMode photoMode;
+//	private MyApplicationInterface.PhotoMode photoMode;
 	private boolean show_time_pref;
 	private boolean show_free_memory_pref;
 	private boolean show_iso_pref;
@@ -311,7 +312,7 @@ public class DrawPreview {
 		if( MyDebug.LOG )
 			Log.d(TAG, "updateSettings");
 
-		photoMode = applicationInterface.getPhotoMode();
+//		photoMode = applicationInterface.getPhotoMode();
 
 		show_time_pref = sharedPreferences.getBoolean(PreferenceKeys.ShowTimePreferenceKey, true);
 		show_free_memory_pref = sharedPreferences.getBoolean(PreferenceKeys.ShowFreeMemoryPreferenceKey, true);
@@ -724,7 +725,7 @@ public class DrawPreview {
 				if( camera_controller.captureResultIsAEScanning() ) {
 					// only show as scanning if in auto ISO mode (problem on Nexus 6 at least that if we're in manual ISO mode, after pausing and
 					// resuming, the camera driver continually reports CONTROL_AE_STATE_SEARCHING)
-					String value = sharedPreferences.getString(PreferenceKeys.ISOPreferenceKey, main_activity.getPreview().getCameraController().getDefaultISO());
+					String value =  main_activity.getPreview().getCameraController().getDefaultISO();
 					if( value.equals("auto") ) {
 						is_scanning = true;
 					}
@@ -771,10 +772,10 @@ public class DrawPreview {
 			if(
 					is_raw_pref &&
 					preview.supportsRaw() && // RAW can be enabled, even if it isn't available for this camera (e.g., user enables RAW for back camera, but then switches to front camera which doesn't support it)
-					!applicationInterface.isVideoPref() && // RAW not supported for video mode
-					photoMode != MyApplicationInterface.PhotoMode.HDR &&
+					!applicationInterface.isVideoPref()// && // RAW not supported for video mode
+					/*photoMode != MyApplicationInterface.PhotoMode.HDR &&
 					photoMode != MyApplicationInterface.PhotoMode.ExpoBracketing &&
-					photoMode != MyApplicationInterface.PhotoMode.NoiseReduction ) {
+					photoMode != MyApplicationInterface.PhotoMode.NoiseReduction*/ ) {
 				icon_dest.set(location_x2, location_y, location_x2 + icon_size, location_y + icon_size);
 				p.setStyle(Paint.Style.FILL);
 				p.setColor(Color.BLACK);
@@ -825,23 +826,23 @@ public class DrawPreview {
 				}
 			}
 
-			if( ( photoMode == MyApplicationInterface.PhotoMode.HDR || photoMode == MyApplicationInterface.PhotoMode.NoiseReduction ) &&
-					!applicationInterface.isVideoPref() ) { // HDR or NR not supported for video mode
-				icon_dest.set(location_x2, location_y, location_x2 + icon_size, location_y + icon_size);
-				p.setStyle(Paint.Style.FILL);
-				p.setColor(Color.BLACK);
-				p.setAlpha(64);
-				canvas.drawRect(icon_dest, p);
-				p.setAlpha(255);
-				canvas.drawBitmap(photoMode == MyApplicationInterface.PhotoMode.HDR ? hdr_bitmap : nr_bitmap, null, icon_dest, p);
-
-				if( ui_rotation == 180 ) {
-					location_x2 -= icon_size + flash_padding;
-				}
-				else {
-					location_x2 += icon_size + flash_padding;
-				}
-			}
+//			if( ( photoMode == MyApplicationInterface.PhotoMode.HDR || photoMode == MyApplicationInterface.PhotoMode.NoiseReduction ) &&
+//					!applicationInterface.isVideoPref() ) { // HDR or NR not supported for video mode
+//				icon_dest.set(location_x2, location_y, location_x2 + icon_size, location_y + icon_size);
+//				p.setStyle(Paint.Style.FILL);
+//				p.setColor(Color.BLACK);
+//				p.setAlpha(64);
+//				canvas.drawRect(icon_dest, p);
+//				p.setAlpha(255);
+//				canvas.drawBitmap(photoMode == MyApplicationInterface.PhotoMode.HDR ? hdr_bitmap : nr_bitmap, null, icon_dest, p);
+//
+//				if( ui_rotation == 180 ) {
+//					location_x2 -= icon_size + flash_padding;
+//				}
+//				else {
+//					location_x2 += icon_size + flash_padding;
+//				}
+//			}
 
 			if( has_stamp_pref ) { // photo-stamp is supported for photos taken in video mode
 				icon_dest.set(location_x2, location_y, location_x2 + icon_size, location_y + icon_size);
@@ -1042,22 +1043,22 @@ public class DrawPreview {
 				applicationInterface.drawTextWithBackground(canvas, p, string, color, Color.BLACK, canvas.getWidth() / 2 + pixels_offset_x, text_base_y, MyApplicationInterface.Alignment.ALIGNMENT_BOTTOM, ybounds_text, true);
 			}
 			if( preview.isOnTimer() ) {
-				long remaining_time = (preview.getTimerEndTime() - time_ms + 999)/1000;
-				if( MyDebug.LOG )
-					Log.d(TAG, "remaining_time: " + remaining_time);
-				if( remaining_time > 0 ) {
-					p.setTextSize(42 * scale + 0.5f); // convert dps to pixels
-					p.setTextAlign(Paint.Align.CENTER);
-	            	String time_s;
-	            	if( remaining_time < 60 ) {
-	            		// simpler to just show seconds when less than a minute
-	            		time_s = "" + remaining_time;
-	            	}
-	            	else {
-		            	time_s = getTimeStringFromSeconds(remaining_time);
-	            	}
-	            	applicationInterface.drawTextWithBackground(canvas, p, time_s, Color.rgb(244, 67, 54), Color.BLACK, canvas.getWidth() / 2, canvas.getHeight() / 2); // Red 500
-				}
+//				long remaining_time = (preview.getTimerEndTime() - time_ms + 999)/1000;
+//				if( MyDebug.LOG )
+//					Log.d(TAG, "remaining_time: " + remaining_time);
+//				if( remaining_time > 0 ) {
+//					p.setTextSize(42 * scale + 0.5f); // convert dps to pixels
+//					p.setTextAlign(Paint.Align.CENTER);
+//	            	String time_s;
+//	            	if( remaining_time < 60 ) {
+//	            		// simpler to just show seconds when less than a minute
+//	            		time_s = "" + remaining_time;
+//	            	}
+//	            	else {
+//		            	time_s = getTimeStringFromSeconds(remaining_time);
+//	            	}
+//	            	applicationInterface.drawTextWithBackground(canvas, p, time_s, Color.rgb(244, 67, 54), Color.BLACK, canvas.getWidth() / 2, canvas.getHeight() / 2); // Red 500
+//				}
 			}
 			else if( preview.isVideoRecording() ) {
             	long video_time = preview.getVideoTime();

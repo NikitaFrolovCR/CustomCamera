@@ -1,12 +1,5 @@
 package net.sourceforge.opencamera.CameraController;
 
-import net.sourceforge.opencamera.MyDebug;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.hardware.Camera.AutoFocusMoveCallback;
@@ -16,6 +9,13 @@ import android.os.Build;
 import android.os.Handler;
 import android.util.Log;
 import android.view.SurfaceHolder;
+
+import net.sourceforge.opencamera.MyDebug;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 
 /** Provides support using Android's original camera API
  *  android.hardware.Camera.
@@ -1486,7 +1486,7 @@ public class CameraController1 extends CameraController {
 							images.add(pending_burst_images.get(n_half_images+1));
 						}
 
-						picture.onBurstPictureTaken(images);
+//						picture.onBurstPictureTaken(images);
 						pending_burst_images.clear();
 						picture.onCompleted();
 					}

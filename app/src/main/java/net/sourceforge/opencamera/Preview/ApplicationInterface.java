@@ -1,18 +1,14 @@
 package net.sourceforge.opencamera.Preview;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.Date;
-import java.util.List;
-
 import android.content.Context;
 import android.graphics.Canvas;
-import android.hardware.camera2.DngCreator;
 import android.location.Location;
-import android.media.Image;
 import android.net.Uri;
 import android.util.Pair;
 import android.view.MotionEvent;
+
+import java.io.File;
+import java.io.IOException;
 
 /** Provides communication between the Preview and the rest of the application
  *  - so in theory one can drop the Preview/ (and CameraController/) classes
@@ -51,10 +47,10 @@ public interface ApplicationInterface {
 	String getColorEffectPref(); // "node" for default (strings correspond to Android's color effect constants in android.hardware.Camera.Parameters)
 	String getWhiteBalancePref(); // "auto" for default (strings correspond to Android's white balance constants in android.hardware.Camera.Parameters)
 	int getWhiteBalanceTemperaturePref();
-	String getISOPref(); // "auto" for auto-ISO, otherwise a numerical value; see documentation for Preview.supportsISORange().
+//	String getISOPref(); // "auto" for auto-ISO, otherwise a numerical value; see documentation for Preview.supportsISORange().
 	int getExposureCompensationPref(); // 0 for default
 	Pair<Integer, Integer> getCameraResolutionPref(); // return null to let Preview choose size
-	int getImageQualityPref(); // jpeg quality for taking photos; "90" is a recommended default
+//	int getImageQualityPref(); // jpeg quality for taking photos; "90" is a recommended default
 	boolean getFaceDetectionPref(); // whether to use face detection mode
 	String getVideoQualityPref(); // should be one of Preview.getSupportedVideoQuality() (use Preview.getCamcorderProfile() or Preview.getCamcorderProfileDescription() for details); or return "" to let Preview choose quality
 	boolean getVideoStabilizationPref(); // whether to use video stabilization for video
@@ -88,11 +84,11 @@ public interface ApplicationInterface {
 	// Camera2 only modes:
 	long getExposureTimePref(); // only called if getISOPref() is not "default"
 	float getFocusDistancePref();
-	boolean isExpoBracketingPref(); // whether to enable burst photos with expo bracketing
-    int getExpoBracketingNImagesPref(); // how many images to take for exposure bracketing
-    double getExpoBracketingStopsPref(); // stops per image for exposure bracketing
-	boolean getOptimiseAEForDROPref(); // see CameraController doc for setOptimiseAEForDRO().
-	boolean isCameraBurstPref(); // whether to shoot the camera in burst mode (n.b., not the same as the "auto-repeat" burst)
+//	boolean isExpoBracketingPref(); // whether to enable burst photos with expo bracketing
+//    int getExpoBracketingNImagesPref(); // how many images to take for exposure bracketing
+//    double getExpoBracketingStopsPref(); // stops per image for exposure bracketing
+//	boolean getOptimiseAEForDROPref(); // see CameraController doc for setOptimiseAEForDRO().
+//	boolean isCameraBurstPref(); // whether to shoot the camera in burst mode (n.b., not the same as the "auto-repeat" burst)
 	boolean isRawPref(); // whether to enable RAW photos
 	boolean useCamera2FakeFlash(); // whether to enable CameraController.setUseCamera2FakeFlash() for Camera2 API
 	boolean useCamera2FastBurst(); // whether to enable Camera2's captureBurst() for faster taking of expo-bracketing photos (generally should be true, but some devices have problems with captureBurst())
@@ -124,7 +120,7 @@ public interface ApplicationInterface {
 
 	// methods that request actions
 	void layoutUI(); // application should layout UI that's on top of the preview
-	void multitouchZoom(int new_zoom); // indicates that the zoom has changed due to multitouch gesture on preview
+//	void multitouchZoom(int new_zoom); // indicates that the zoom has changed due to multitouch gesture on preview
 	// the set/clear*Pref() methods are called if Preview decides to override the requested pref (because Camera device doesn't support requested pref) (clear*Pref() is called if the feature isn't supported at all)
 	// the application can use this information to update its preferences
 	void setCameraIdPref(int cameraId);
@@ -138,8 +134,8 @@ public interface ApplicationInterface {
 	void setWhiteBalancePref(String white_balance);
 	void clearWhiteBalancePref();
 	void setWhiteBalanceTemperaturePref(int white_balance_temperature);
-	void setISOPref(String iso);
-	void clearISOPref();
+//	void setISOPref(String iso);
+//	void clearISOPref();
 	void setExposureCompensationPref(int exposure);
 	void clearExposureCompensationPref();
 	void setCameraResolutionPref(int width, int height);
@@ -155,10 +151,10 @@ public interface ApplicationInterface {
 	
 	// callbacks
 	void onDrawPreview(Canvas canvas);
-	boolean onPictureTaken(byte [] data, Date current_date);
-	boolean onBurstPictureTaken(List<byte []> images, Date current_date);
-	boolean onRawPictureTaken(DngCreator dngCreator, Image image, Date current_date);
+//	boolean onPictureTaken(byte [] data, Date current_date);
+//	boolean onBurstPictureTaken(List<byte []> images, Date current_date);
+//	boolean onRawPictureTaken(DngCreator dngCreator, Image image, Date current_date);
 	void onCaptureStarted(); // called immediately before we start capturing the picture
-	void onPictureCompleted(); // called after all picture callbacks have been called and returned
+//	void onPictureCompleted(); // called after all picture callbacks have been called and returned
 	void onContinuousFocusMove(boolean start); // called when focusing starts/stop in continuous picture mode (in photo mode only)
 }

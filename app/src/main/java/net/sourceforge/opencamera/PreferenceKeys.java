@@ -57,15 +57,15 @@ public class PreferenceKeys {
 
 	public static final String WhiteBalanceTemperaturePreferenceKey = "preference_white_balance_temperature";
 
-	public static final String ISOPreferenceKey = "preference_iso";
+//	public static final String ISOPreferenceKey = "preference_iso";
 
 	public static final String ExposureTimePreferenceKey = "preference_exposure_time";
 
 	public static final String RawPreferenceKey = "preference_raw";
 
-	public static final String ExpoBracketingNImagesPreferenceKey = "preference_expo_bracketing_n_images";
+//	public static final String ExpoBracketingNImagesPreferenceKey = "preference_expo_bracketing_n_images";
 
-	public static final String ExpoBracketingStopsPreferenceKey = "preference_expo_bracketing_stops";
+//	public static final String ExpoBracketingStopsPreferenceKey = "preference_expo_bracketing_stops";
 
 	public static final String VolumeKeysPreferenceKey = "preference_volume_keys";
 
@@ -77,11 +77,11 @@ public class PreferenceKeys {
 
 	public static final String AutoStabilisePreferenceKey = "preference_auto_stabilise";
 
-	public static final String PhotoModePreferenceKey = "preference_photo_mode";
+//	public static final String PhotoModePreferenceKey = "preference_photo_mode";
 
-	public static final String HDRSaveExpoPreferenceKey = "preference_hdr_save_expo";
+//	public static final String HDRSaveExpoPreferenceKey = "preference_hdr_save_expo";
 
-	public static final String NRSaveExpoPreferenceKey = "preference_nr_save";
+//	public static final String NRSaveExpoPreferenceKey = "preference_nr_save";
 
 	public static final String LocationPreferenceKey = "preference_location";
 
@@ -167,7 +167,7 @@ public class PreferenceKeys {
     	return "preference_save_zulu_time";
     }
 
-	public static final String ShowZoomControlsPreferenceKey = "preference_show_zoom_controls";
+//	public static final String ShowZoomControlsPreferenceKey = "preference_show_zoom_controls";
 
 	public static final String ShowZoomSliderControlsPreferenceKey = "preference_show_zoom_slider_controls";
 

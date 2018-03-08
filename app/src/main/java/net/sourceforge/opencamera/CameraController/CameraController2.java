@@ -2307,8 +2307,8 @@ public class CameraController2 extends CameraController {
 				            jpeg_cb = null;
 							// no need to check raw_cb, as raw not supported for burst
 				            // take a copy, so that we can clear pending_burst_images
-				            List<byte []> images = new ArrayList<>(pending_burst_images);
-				            cb.onBurstPictureTaken(images);
+//				            List<byte []> images = new ArrayList<>(pending_burst_images);
+//				            cb.onBurstPictureTaken(images);
 				            pending_burst_images.clear();
 							cb.onCompleted();
 		            	}
@@ -2451,7 +2451,7 @@ public class CameraController2 extends CameraController {
 		if( pending_dngCreator != null ) {
             PictureCallback cb = raw_cb;
             raw_cb = null;
-            cb.onRawPictureTaken(pending_dngCreator, pending_image);
+//            cb.onRawPictureTaken(pending_dngCreator, pending_image);
             // image and dngCreator should be closed by the application (we don't do it here, so that applications can keep hold of the data, e.g., in a queue for background processing)
             pending_dngCreator = null;
             pending_image = null;

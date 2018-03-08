@@ -251,7 +251,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			Log.d(TAG, "onCreate: time after creating magnetic sensor: " + (System.currentTimeMillis() - debug_time));
 
 		// clear any seek bars (just in case??)
-		mainUI.clearSeekBar();
+//		mainUI.clearSeekBar();
 
 		// set up the camera and its preview
         preview = new Preview(applicationInterface, ((ViewGroup) this.findViewById(R.id.preview)));
@@ -748,10 +748,10 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 	private void audioTrigger() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "ignore audio trigger due to popup open");
-		if( popupIsOpen() ) {
-			if( MyDebug.LOG )
-				Log.d(TAG, "ignore audio trigger due to popup open");
-		}
+//		if( popupIsOpen() ) {
+//			if( MyDebug.LOG )
+//				Log.d(TAG, "ignore audio trigger due to popup open");
+//		}
 		else if( camera_in_background ) {
 			if( MyDebug.LOG )
 				Log.d(TAG, "ignore audio trigger due to camera in background");
@@ -794,25 +794,25 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
         return super.onKeyUp(keyCode, event);
 	}
 
-	public void zoomIn() {
-		mainUI.changeSeekbar(R.id.zoom_seekbar, -1);
-	}
-	
-	public void zoomOut() {
-		mainUI.changeSeekbar(R.id.zoom_seekbar, 1);
-	}
-	
-	public void changeExposure(int change) {
-		mainUI.changeSeekbar(R.id.exposure_seekbar, change);
-	}
-
-	public void changeISO(int change) {
-		mainUI.changeSeekbar(R.id.iso_seekbar, change);
-	}
-
-	public void changeFocusDistance(int change) {
-		mainUI.changeSeekbar(R.id.focus_seekbar, change);
-	}
+//	public void zoomIn() {
+//		mainUI.changeSeekbar(R.id.zoom_seekbar, -1);
+//	}
+//
+//	public void zoomOut() {
+//		mainUI.changeSeekbar(R.id.zoom_seekbar, 1);
+//	}
+//
+//	public void changeExposure(int change) {
+//		mainUI.changeSeekbar(R.id.exposure_seekbar, change);
+//	}
+//
+//	public void changeISO(int change) {
+//		mainUI.changeSeekbar(R.id.iso_seekbar, change);
+//	}
+//
+//	public void changeFocusDistance(int change) {
+//		mainUI.changeSeekbar(R.id.focus_seekbar, change);
+//	}
 	
 	private final SensorEventListener accelerometerListener = new SensorEventListener() {
 		@Override
@@ -890,9 +890,9 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			Log.d(TAG, "onPause");
 			debug_time = System.currentTimeMillis();
 		}
-		waitUntilImageQueueEmpty(); // so we don't risk losing any images
+//		waitUntilImageQueueEmpty(); // so we don't risk losing any images
         super.onPause(); // docs say to call this before freeing other things
-        mainUI.destroyPopup(); // important as user could change/reset settings from Android settings when pausing
+//        mainUI.destroyPopup(); // important as user could change/reset settings from Android settings when pausing
         mSensorManager.unregisterListener(accelerometerListener);
         mSensorManager.unregisterListener(magneticListener);
         orientationEventListener.disable();
@@ -918,16 +918,16 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
         super.onConfigurationChanged(newConfig);
     }
     
-    public void waitUntilImageQueueEmpty() {
-		if( MyDebug.LOG )
-			Log.d(TAG, "waitUntilImageQueueEmpty");
-        applicationInterface.getImageSaver().waitUntilDone();
-    }
+//    public void waitUntilImageQueueEmpty() {
+//		if( MyDebug.LOG )
+//			Log.d(TAG, "waitUntilImageQueueEmpty");
+//        applicationInterface.getImageSaver().waitUntilDone();
+//    }
     
     public void clickedTakePhoto(View view) {
 		if( MyDebug.LOG )
 			Log.d(TAG, "clickedTakePhoto");
-    	this.takePicture(false);
+    	this.takePicture(true);
     }
 
 	/** User has clicked button to take a photo snapshot whilst video recording.
@@ -935,7 +935,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 	public void clickedTakePhotoVideoSnapshot(View view) {
 		if( MyDebug.LOG )
 			Log.d(TAG, "clickedTakePhotoVideoSnapshot");
-    	this.takePicture(true);
+    	this.takePicture(false);
 	}
 
 	public void clickedPauseVideo(View view) {
@@ -956,7 +956,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 				Log.e(TAG, "clickedAudioControl, but hasAudioControl returns false!");
 			return;
 		}
-		this.closePopup();
+//		this.closePopup();
 		SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
 		String audio_control = sharedPreferences.getString(PreferenceKeys.AudioControlPreferenceKey, "none");
         if( audio_control.equals("voice") && speechRecognizer != null ) {
@@ -1022,7 +1022,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 				Log.d(TAG, "already opening camera in background thread");
 			return;
 		}
-		this.closePopup();
+//		this.closePopup();
 		if( this.preview.canSwitchCamera() ) {
 			int cameraId = getNextCameraId();
 		    View switchCameraButton = findViewById(R.id.switch_camera);
@@ -1037,15 +1037,15 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
     public void clickedSwitchVideo(View view) {
 		if( MyDebug.LOG )
 			Log.d(TAG, "clickedSwitchVideo");
-		this.closePopup();
-		mainUI.destroyPopup(); // important as we don't want to use a cached popup, as we can show different options depending on whether we're in photo or video mode
+//		this.closePopup();
+//		mainUI.destroyPopup(); // important as we don't want to use a cached popup, as we can show different options depending on whether we're in photo or video mode
 	    View switchVideoButton = findViewById(R.id.switch_video);
 	    switchVideoButton.setEnabled(false); // prevent slowdown if user repeatedly clicks
 		this.preview.switchVideo(false, true);
 		switchVideoButton.setEnabled(true);
 
 		mainUI.setTakePhotoIcon();
-	    mainUI.setPopupIcon(); // needed as turning to video mode or back can turn flash mode off or back on
+//	    mainUI.setPopupIcon(); // needed as turning to video mode or back can turn flash mode off or back on
 		if( !block_startup_toast ) {
 			this.showPhotoVideoToast(true);
 		}
@@ -1105,14 +1105,14 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		seekBar.setProgress(new_value);
 	}
 
-    public void clickedExposureLock(View view) {
-		if( MyDebug.LOG )
-			Log.d(TAG, "clickedExposureLock");
-    	this.preview.toggleExposureLock();
-	    ImageButton exposureLockButton = (ImageButton) findViewById(R.id.exposure_lock);
-		exposureLockButton.setImageResource(preview.isExposureLocked() ? R.drawable.exposure_locked : R.drawable.exposure_unlocked);
-		preview.showToast(exposure_lock_toast, preview.isExposureLocked() ? R.string.exposure_locked : R.string.exposure_unlocked);
-    }
+//    public void clickedExposureLock(View view) {
+//		if( MyDebug.LOG )
+//			Log.d(TAG, "clickedExposureLock");
+//    	this.preview.toggleExposureLock();
+//	    ImageButton exposureLockButton = (ImageButton) findViewById(R.id.exposure_lock);
+//		exposureLockButton.setImageResource(preview.isExposureLocked() ? R.drawable.exposure_locked : R.drawable.exposure_unlocked);
+//		preview.showToast(exposure_lock_toast, preview.isExposureLocked() ? R.string.exposure_locked : R.string.exposure_unlocked);
+//    }
     
     public void clickedSettings(View view) {
 		if( MyDebug.LOG )
@@ -1120,28 +1120,28 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		openSettings();
     }
 
-    public boolean popupIsOpen() {
-    	return mainUI.popupIsOpen();
-    }
+//    public boolean popupIsOpen() {
+//    	return mainUI.popupIsOpen();
+//    }
 	
     // for testing
     public View getUIButton(String key) {
     	return mainUI.getUIButton(key);
     }
     
-    public void closePopup() {
-    	mainUI.closePopup();
-    }
+//    public void closePopup() {
+//    	mainUI.closePopup();
+//    }
 
     public Bitmap getPreloadedBitmap(int resource) {
 		return this.preloaded_bitmap_resources.get(resource);
     }
 
-    public void clickedPopupSettings(View view) {
-		if( MyDebug.LOG )
-			Log.d(TAG, "clickedPopupSettings");
-		mainUI.togglePopupSettings();
-    }
+//    public void clickedPopupSettings(View view) {
+//		if( MyDebug.LOG )
+//			Log.d(TAG, "clickedPopupSettings");
+//		mainUI.togglePopupSettings();
+//    }
 
     private final PreferencesListener preferencesListener = new PreferencesListener();
 
@@ -1244,8 +1244,8 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
     public void openSettings() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "openSettings");
-		waitUntilImageQueueEmpty(); // in theory not needed as we could continue running in the background, but best to be safe
-		closePopup();
+//		waitUntilImageQueueEmpty(); // in theory not needed as we could continue running in the background, but best to be safe
+//		closePopup();
 		preview.cancelTimer(); // best to cancel any timer, in case we take a photo while settings window is open, or when changing settings
 		preview.cancelBurst(); // similarly cancel the auto-repeat burst mode!
 		preview.stopVideo(false); // important to stop video, as we'll be changing camera parameters when the settings window closes
@@ -1261,7 +1261,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		bundle.putBoolean("supports_camera2", this.supports_camera2);
 		bundle.putBoolean("supports_face_detection", this.preview.supportsFaceDetection());
 		bundle.putBoolean("supports_raw", this.preview.supportsRaw());
-		bundle.putBoolean("supports_hdr", this.supportsHDR());
+//		bundle.putBoolean("supports_hdr", this.supportsHDR());
 		bundle.putBoolean("supports_nr", this.supportsNoiseReduction());
 		bundle.putBoolean("supports_expo_bracketing", this.supportsExpoBracketing());
 		bundle.putInt("max_expo_bracketing_n_images", this.maxExpoBracketingNImages());
@@ -1411,12 +1411,12 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			Log.d(TAG, "updateForSettings: time after update folder history: " + (System.currentTimeMillis() - debug_time));
 		}
 
-		if( !keep_popup ) {
-			mainUI.destroyPopup(); // important as we don't want to use a cached popup
-			if( MyDebug.LOG ) {
-				Log.d(TAG, "updateForSettings: time after destroy popup: " + (System.currentTimeMillis() - debug_time));
-			}
-		}
+//		if( !keep_popup ) {
+//			mainUI.destroyPopup(); // important as we don't want to use a cached popup
+//			if( MyDebug.LOG ) {
+//				Log.d(TAG, "updateForSettings: time after destroy popup: " + (System.currentTimeMillis() - debug_time));
+//			}
+//		}
 
 		// update camera for changes made in prefs - do this without closing and reopening the camera app if possible for speed!
 		// but need workaround for Nexus 7 bug on old camera API, where scene mode doesn't take effect unless the camera is restarted - I can reproduce this with other 3rd party camera apps, so may be a Nexus 7 issue...
@@ -1542,10 +1542,10 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 			}
         }
         else {
-			if( popupIsOpen() ) {
-    			closePopup();
-    			return;
-    		}
+//			if( popupIsOpen() ) {
+//    			closePopup();
+//    			return;
+//    		}
         }
         super.onBackPressed();        
     }
@@ -1585,7 +1585,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
     	    public void run(){
     			if( MyDebug.LOG )
     				Log.d(TAG, "setImmersiveTimer: run");
-    			if( !camera_in_background && !popupIsOpen() && usingKitKatImmersiveMode() )
+    			if( !camera_in_background && usingKitKatImmersiveMode() )
     				setImmersiveMode(true);
     	   }
     	}, 5000);
@@ -2341,7 +2341,7 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		if( MyDebug.LOG )
 			Log.d(TAG, "takePicturePressed");
 
-		closePopup();
+//		closePopup();
 
 		if( applicationInterface.getGyroSensor().isRecording() ) {
 			if (MyDebug.LOG)
@@ -2432,14 +2432,14 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 	    }
 	}
 	
-	public boolean supportsExposureButton() {
-		if( preview.getCameraController() == null )
-			return false;
-    	SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-		String iso_value = sharedPreferences.getString(PreferenceKeys.ISOPreferenceKey, preview.getCameraController().getDefaultISO());
-		boolean manual_iso = !iso_value.equals("auto");
-		return preview.supportsExposures() || (manual_iso && preview.supportsISORange() );
-	}
+//	public boolean supportsExposureButton() {
+//		if( preview.getCameraController() == null )
+//			return false;
+//    	SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+////		String iso_value = sharedPreferences.getString(PreferenceKeys.ISOPreferenceKey, preview.getCameraController().getDefaultISO());
+////		boolean manual_iso = !iso_value.equals("auto");
+//		return preview.supportsExposures() || (manual_iso && preview.supportsISORange() );
+//	}
 
     void cameraSetup() {
 		long debug_time = 0;
@@ -2474,28 +2474,28 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		    SeekBar zoomSeekBar = (SeekBar) findViewById(R.id.zoom_seekbar);
 
 			if( preview.supportsZoom() ) {
-				if( sharedPreferences.getBoolean(PreferenceKeys.ShowZoomControlsPreferenceKey, false) ) {
-				    zoomControls.setIsZoomInEnabled(true);
-			        zoomControls.setIsZoomOutEnabled(true);
-			        zoomControls.setZoomSpeed(20);
-
-			        zoomControls.setOnZoomInClickListener(new View.OnClickListener(){
-			            public void onClick(View v){
-			            	zoomIn();
-			            }
-			        });
-				    zoomControls.setOnZoomOutClickListener(new View.OnClickListener(){
-				    	public void onClick(View v){
-				    		zoomOut();
-				        }
-				    });
-					if( !mainUI.inImmersiveMode() ) {
-						zoomControls.setVisibility(View.VISIBLE);
-					}
-				}
-				else {
+//				if( sharedPreferences.getBoolean(PreferenceKeys.ShowZoomControlsPreferenceKey, false) ) {
+//				    zoomControls.setIsZoomInEnabled(true);
+//			        zoomControls.setIsZoomOutEnabled(true);
+//			        zoomControls.setZoomSpeed(20);
+//
+//			        zoomControls.setOnZoomInClickListener(new View.OnClickListener(){
+//			            public void onClick(View v){
+//			            	zoomIn();
+//			            }
+//			        });
+//				    zoomControls.setOnZoomOutClickListener(new View.OnClickListener(){
+//				    	public void onClick(View v){
+//				    		zoomOut();
+//				        }
+//				    });
+//					if( !mainUI.inImmersiveMode() ) {
+//						zoomControls.setVisibility(View.VISIBLE);
+//					}
+//				}
+//				else {
 					zoomControls.setVisibility(View.GONE);
-				}
+//				}
 				
 				zoomSeekBar.setOnSeekBarChangeListener(null); // clear an existing listener - don't want to call the listener when setting up the progress bar to match the existing state
 				zoomSeekBar.setMax(preview.getMaxZoom());
@@ -2574,141 +2574,141 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 		if( MyDebug.LOG )
 			Log.d(TAG, "cameraSetup: time after setting up manual focus: " + (System.currentTimeMillis() - debug_time));
 		{
-			if( preview.supportsISORange()) {
-				if( MyDebug.LOG )
-					Log.d(TAG, "set up iso");
-				SeekBar iso_seek_bar = ((SeekBar)findViewById(R.id.iso_seekbar));
-			    iso_seek_bar.setOnSeekBarChangeListener(null); // clear an existing listener - don't want to call the listener when setting up the progress bar to match the existing state
-				setProgressSeekbarExponential(iso_seek_bar, preview.getMinimumISO(), preview.getMaximumISO(), preview.getCameraController().getISO());
-				iso_seek_bar.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
-					@Override
-					public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-						if( MyDebug.LOG )
-							Log.d(TAG, "iso seekbar onProgressChanged: " + progress);
-						double frac = progress/(double)manual_n;
-						if( MyDebug.LOG )
-							Log.d(TAG, "exposure_time frac: " + frac);
-						/*double scaling = MainActivity.seekbarScaling(frac);
-						if( MyDebug.LOG )
-							Log.d(TAG, "exposure_time scaling: " + scaling);
-						int min_iso = preview.getMinimumISO();
-						int max_iso = preview.getMaximumISO();
-						int iso = min_iso + (int)(scaling * (max_iso - min_iso));*/
-						int min_iso = preview.getMinimumISO();
-						int max_iso = preview.getMaximumISO();
-						int iso = (int)exponentialScaling(frac, min_iso, max_iso);
-						preview.setISO(iso);
-						mainUI.updateSelectedISOButton();
-					}
-
-					@Override
-					public void onStartTrackingTouch(SeekBar seekBar) {
-					}
-
-					@Override
-					public void onStopTrackingTouch(SeekBar seekBar) {
-					}
-				});
-				if( preview.supportsExposureTime() ) {
-					if( MyDebug.LOG )
-						Log.d(TAG, "set up exposure time");
-					SeekBar exposure_time_seek_bar = ((SeekBar)findViewById(R.id.exposure_time_seekbar));
-					exposure_time_seek_bar.setOnSeekBarChangeListener(null); // clear an existing listener - don't want to call the listener when setting up the progress bar to match the existing state
-					setProgressSeekbarExponential(exposure_time_seek_bar, preview.getMinimumExposureTime(), preview.getMaximumExposureTime(), preview.getCameraController().getExposureTime());
-					exposure_time_seek_bar.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
-						@Override
-						public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-							if( MyDebug.LOG )
-								Log.d(TAG, "exposure_time seekbar onProgressChanged: " + progress);
-							double frac = progress/(double)manual_n;
-							if( MyDebug.LOG )
-								Log.d(TAG, "exposure_time frac: " + frac);
-							//long exposure_time = min_exposure_time + (long)(frac * (max_exposure_time - min_exposure_time));
-							//double exposure_time_r = min_exposure_time_r + (frac * (max_exposure_time_r - min_exposure_time_r));
-							//long exposure_time = (long)(1.0 / exposure_time_r);
-							// we use the formula: [100^(percent/100) - 1]/99.0 rather than a simple linear scaling
-							/*double scaling = MainActivity.seekbarScaling(frac);
-							if( MyDebug.LOG )
-								Log.d(TAG, "exposure_time scaling: " + scaling);
-							long min_exposure_time = preview.getMinimumExposureTime();
-							long max_exposure_time = preview.getMaximumExposureTime();
-							long exposure_time = min_exposure_time + (long)(scaling * (max_exposure_time - min_exposure_time));*/
-							long min_exposure_time = preview.getMinimumExposureTime();
-							long max_exposure_time = preview.getMaximumExposureTime();
-							long exposure_time = (long)exponentialScaling(frac, min_exposure_time, max_exposure_time);
-							preview.setExposureTime(exposure_time);
-						}
-
-						@Override
-						public void onStartTrackingTouch(SeekBar seekBar) {
-						}
-
-						@Override
-						public void onStopTrackingTouch(SeekBar seekBar) {
-						}
-					});
-				}
-			}
+//			if( preview.supportsISORange()) {
+//				if( MyDebug.LOG )
+//					Log.d(TAG, "set up iso");
+////				SeekBar iso_seek_bar = ((SeekBar)findViewById(R.id.iso_seekbar));
+////			    iso_seek_bar.setOnSeekBarChangeListener(null); // clear an existing listener - don't want to call the listener when setting up the progress bar to match the existing state
+////				setProgressSeekbarExponential(iso_seek_bar, preview.getMinimumISO(), preview.getMaximumISO(), preview.getCameraController().getISO());
+//////				iso_seek_bar.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
+////					@Override
+////					public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+////						if( MyDebug.LOG )
+////							Log.d(TAG, "iso seekbar onProgressChanged: " + progress);
+////						double frac = progress/(double)manual_n;
+////						if( MyDebug.LOG )
+////							Log.d(TAG, "exposure_time frac: " + frac);
+////						/*double scaling = MainActivity.seekbarScaling(frac);
+////						if( MyDebug.LOG )
+////							Log.d(TAG, "exposure_time scaling: " + scaling);
+////						int min_iso = preview.getMinimumISO();
+////						int max_iso = preview.getMaximumISO();
+////						int iso = min_iso + (int)(scaling * (max_iso - min_iso));*/
+////						int min_iso = preview.getMinimumISO();
+////						int max_iso = preview.getMaximumISO();
+////						int iso = (int)exponentialScaling(frac, min_iso, max_iso);
+////						preview.setISO(iso);
+//////						mainUI.updateSelectedISOButton();
+////					}
+////
+////					@Override
+////					public void onStartTrackingTouch(SeekBar seekBar) {
+////					}
+////
+////					@Override
+////					public void onStopTrackingTouch(SeekBar seekBar) {
+////					}
+////				});
+//				if( preview.supportsExposureTime() ) {
+//					if( MyDebug.LOG )
+//						Log.d(TAG, "set up exposure time");
+//					SeekBar exposure_time_seek_bar = ((SeekBar)findViewById(R.id.exposure_time_seekbar));
+//					exposure_time_seek_bar.setOnSeekBarChangeListener(null); // clear an existing listener - don't want to call the listener when setting up the progress bar to match the existing state
+//					setProgressSeekbarExponential(exposure_time_seek_bar, preview.getMinimumExposureTime(), preview.getMaximumExposureTime(), preview.getCameraController().getExposureTime());
+//					exposure_time_seek_bar.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
+//						@Override
+//						public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+//							if( MyDebug.LOG )
+//								Log.d(TAG, "exposure_time seekbar onProgressChanged: " + progress);
+//							double frac = progress/(double)manual_n;
+//							if( MyDebug.LOG )
+//								Log.d(TAG, "exposure_time frac: " + frac);
+//							//long exposure_time = min_exposure_time + (long)(frac * (max_exposure_time - min_exposure_time));
+//							//double exposure_time_r = min_exposure_time_r + (frac * (max_exposure_time_r - min_exposure_time_r));
+//							//long exposure_time = (long)(1.0 / exposure_time_r);
+//							// we use the formula: [100^(percent/100) - 1]/99.0 rather than a simple linear scaling
+//							/*double scaling = MainActivity.seekbarScaling(frac);
+//							if( MyDebug.LOG )
+//								Log.d(TAG, "exposure_time scaling: " + scaling);
+//							long min_exposure_time = preview.getMinimumExposureTime();
+//							long max_exposure_time = preview.getMaximumExposureTime();
+//							long exposure_time = min_exposure_time + (long)(scaling * (max_exposure_time - min_exposure_time));*/
+//							long min_exposure_time = preview.getMinimumExposureTime();
+//							long max_exposure_time = preview.getMaximumExposureTime();
+//							long exposure_time = (long)exponentialScaling(frac, min_exposure_time, max_exposure_time);
+//							preview.setExposureTime(exposure_time);
+//						}
+//
+//						@Override
+//						public void onStartTrackingTouch(SeekBar seekBar) {
+//						}
+//
+//						@Override
+//						public void onStopTrackingTouch(SeekBar seekBar) {
+//						}
+//					});
+//				}
+//			}
 		}
 		setManualWBSeekbar();
 		if( MyDebug.LOG )
 			Log.d(TAG, "cameraSetup: time after setting up iso: " + (System.currentTimeMillis() - debug_time));
-		{
-			if( preview.supportsExposures() ) {
-				if( MyDebug.LOG )
-					Log.d(TAG, "set up exposure compensation");
-				final int min_exposure = preview.getMinimumExposure();
-				SeekBar exposure_seek_bar = ((SeekBar)findViewById(R.id.exposure_seekbar));
-				exposure_seek_bar.setOnSeekBarChangeListener(null); // clear an existing listener - don't want to call the listener when setting up the progress bar to match the existing state
-				exposure_seek_bar.setMax( preview.getMaximumExposure() - min_exposure );
-				exposure_seek_bar.setProgress( preview.getCurrentExposure() - min_exposure );
-				exposure_seek_bar.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
-					@Override
-					public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-						if( MyDebug.LOG )
-							Log.d(TAG, "exposure seekbar onProgressChanged: " + progress);
-						preview.setExposure(min_exposure + progress);
-					}
-
-					@Override
-					public void onStartTrackingTouch(SeekBar seekBar) {
-					}
-
-					@Override
-					public void onStopTrackingTouch(SeekBar seekBar) {
-					}
-				});
-
-				ZoomControls seek_bar_zoom = (ZoomControls)findViewById(R.id.exposure_seekbar_zoom);
-				seek_bar_zoom.setOnZoomInClickListener(new View.OnClickListener(){
-		            public void onClick(View v){
-		            	changeExposure(1);
-		            }
-		        });
-				seek_bar_zoom.setOnZoomOutClickListener(new View.OnClickListener(){
-			    	public void onClick(View v){
-		            	changeExposure(-1);
-			        }
-			    });
-			}
-		}
+//		{
+//			if( preview.supportsExposures() ) {
+//				if( MyDebug.LOG )
+//					Log.d(TAG, "set up exposure compensation");
+//				final int min_exposure = preview.getMinimumExposure();
+//				SeekBar exposure_seek_bar = ((SeekBar)findViewById(R.id.exposure_seekbar));
+//				exposure_seek_bar.setOnSeekBarChangeListener(null); // clear an existing listener - don't want to call the listener when setting up the progress bar to match the existing state
+//				exposure_seek_bar.setMax( preview.getMaximumExposure() - min_exposure );
+//				exposure_seek_bar.setProgress( preview.getCurrentExposure() - min_exposure );
+//				exposure_seek_bar.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
+//					@Override
+//					public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+//						if( MyDebug.LOG )
+//							Log.d(TAG, "exposure seekbar onProgressChanged: " + progress);
+//						preview.setExposure(min_exposure + progress);
+//					}
+//
+//					@Override
+//					public void onStartTrackingTouch(SeekBar seekBar) {
+//					}
+//
+//					@Override
+//					public void onStopTrackingTouch(SeekBar seekBar) {
+//					}
+//				});
+//
+////				ZoomControls seek_bar_zoom = (ZoomControls)findViewById(R.id.exposure_seekbar_zoom);
+////				seek_bar_zoom.setOnZoomInClickListener(new View.OnClickListener(){
+////		            public void onClick(View v){
+////		            	changeExposure(1);
+////		            }
+////		        });
+////				seek_bar_zoom.setOnZoomOutClickListener(new View.OnClickListener(){
+////			    	public void onClick(View v){
+////		            	changeExposure(-1);
+////			        }
+////			    });
+//			}
+//		}
 		if( MyDebug.LOG )
 			Log.d(TAG, "cameraSetup: time after setting up exposure: " + (System.currentTimeMillis() - debug_time));
 
-		View exposureButton = findViewById(R.id.exposure);
-	    exposureButton.setVisibility(supportsExposureButton() && !mainUI.inImmersiveMode() ? View.VISIBLE : View.GONE);
-
-	    ImageButton exposureLockButton = (ImageButton) findViewById(R.id.exposure_lock);
-	    exposureLockButton.setVisibility(preview.supportsExposureLock() && !mainUI.inImmersiveMode() ? View.VISIBLE : View.GONE);
-	    if( preview.supportsExposureLock() ) {
-			exposureLockButton.setImageResource(preview.isExposureLocked() ? R.drawable.exposure_locked : R.drawable.exposure_unlocked);
-	    }
+//		View exposureButton = findViewById(R.id.exposure);
+//	    exposureButton.setVisibility(!mainUI.inImmersiveMode() ? View.VISIBLE : View.GONE);
+//
+//	    ImageButton exposureLockButton = (ImageButton) findViewById(R.id.exposure_lock);
+//	    exposureLockButton.setVisibility(preview.supportsExposureLock() && !mainUI.inImmersiveMode() ? View.VISIBLE : View.GONE);
+//	    if( preview.supportsExposureLock() ) {
+//			exposureLockButton.setImageResource(preview.isExposureLocked() ? R.drawable.exposure_locked : R.drawable.exposure_unlocked);
+//	    }
 		if( MyDebug.LOG )
 			Log.d(TAG, "cameraSetup: time after setting exposure lock button: " + (System.currentTimeMillis() - debug_time));
 
-	    mainUI.setPopupIcon(); // needed so that the icon is set right even if no flash mode is set when starting up camera (e.g., switching to front camera with no flash)
-		if( MyDebug.LOG )
-			Log.d(TAG, "cameraSetup: time after setting popup icon: " + (System.currentTimeMillis() - debug_time));
+//	    mainUI.setPopupIcon(); // needed so that the icon is set right even if no flash mode is set when starting up camera (e.g., switching to front camera with no flash)
+//		if( MyDebug.LOG )
+//			Log.d(TAG, "cameraSetup: time after setting popup icon: " + (System.currentTimeMillis() - debug_time));
 
 		mainUI.setTakePhotoIcon();
 		mainUI.setSwitchCameraContentDescription();
@@ -2726,50 +2726,50 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
     public void setManualWBSeekbar() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "setManualWBSeekbar");
-		if( preview.getSupportedWhiteBalances() != null && preview.supportsWhiteBalanceTemperature() ) {
-			if( MyDebug.LOG )
-				Log.d(TAG, "set up manual white balance");
-			SeekBar white_balance_seek_bar = ((SeekBar)findViewById(R.id.white_balance_seekbar));
-			white_balance_seek_bar.setOnSeekBarChangeListener(null); // clear an existing listener - don't want to call the listener when setting up the progress bar to match the existing state
-			final int minimum_temperature = preview.getMinimumWhiteBalanceTemperature();
-			final int maximum_temperature = preview.getMaximumWhiteBalanceTemperature();
-			// white balance should use linear scaling
-			white_balance_seek_bar.setMax(maximum_temperature - minimum_temperature);
-			white_balance_seek_bar.setProgress(preview.getCameraController().getWhiteBalanceTemperature() - minimum_temperature);
-			white_balance_seek_bar.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
-				@Override
-				public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-					if( MyDebug.LOG )
-						Log.d(TAG, "white balance seekbar onProgressChanged: " + progress);
-					int temperature = minimum_temperature + progress;
-					preview.setWhiteBalanceTemperature(temperature);
-				}
-
-				@Override
-				public void onStartTrackingTouch(SeekBar seekBar) {
-				}
-
-				@Override
-				public void onStopTrackingTouch(SeekBar seekBar) {
-				}
-			});
-		}
+//		if( preview.getSupportedWhiteBalances() != null && preview.supportsWhiteBalanceTemperature() ) {
+//			if( MyDebug.LOG )
+//				Log.d(TAG, "set up manual white balance");
+////			SeekBar white_balance_seek_bar = ((SeekBar)findViewById(R.id.white_balance_seekbar));
+//			white_balance_seek_bar.setOnSeekBarChangeListener(null); // clear an existing listener - don't want to call the listener when setting up the progress bar to match the existing state
+//			final int minimum_temperature = preview.getMinimumWhiteBalanceTemperature();
+//			final int maximum_temperature = preview.getMaximumWhiteBalanceTemperature();
+//			// white balance should use linear scaling
+//			white_balance_seek_bar.setMax(maximum_temperature - minimum_temperature);
+//			white_balance_seek_bar.setProgress(preview.getCameraController().getWhiteBalanceTemperature() - minimum_temperature);
+//			white_balance_seek_bar.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
+//				@Override
+//				public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+//					if( MyDebug.LOG )
+//						Log.d(TAG, "white balance seekbar onProgressChanged: " + progress);
+//					int temperature = minimum_temperature + progress;
+//					preview.setWhiteBalanceTemperature(temperature);
+//				}
+//
+//				@Override
+//				public void onStartTrackingTouch(SeekBar seekBar) {
+//				}
+//
+//				@Override
+//				public void onStopTrackingTouch(SeekBar seekBar) {
+//				}
+//			});
+//		}
 	}
     
     public boolean supportsAutoStabilise() {
     	return this.supports_auto_stabilise;
     }
 
-	public boolean supportsDRO() {
-		// require at least Android 5, for the Renderscript support in HDRProcessor
-		return( Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP );
-	}
-
-    public boolean supportsHDR() {
-    	// we also require the device have sufficient memory to do the processing, simplest to use the same test as we do for auto-stabilise...
-		// also require at least Android 5, for the Renderscript support in HDRProcessor
-		return( Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && this.supportsAutoStabilise() && preview.supportsExpoBracketing() );
-    }
+//	public boolean supportsDRO() {
+//		// require at least Android 5, for the Renderscript support in HDRProcessor
+//		return( Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP );
+//	}
+//
+//    public boolean supportsHDR() {
+//    	// we also require the device have sufficient memory to do the processing, simplest to use the same test as we do for auto-stabilise...
+//		// also require at least Android 5, for the Renderscript support in HDRProcessor
+//		return( Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && this.supportsAutoStabilise() && preview.supportsExpoBracketing() );
+//    }
     
     public boolean supportsExpoBracketing() {
 		return preview.supportsExpoBracketing();
@@ -2953,36 +2953,36 @@ public class MainActivity extends Activity implements AudioListener.AudioListene
 				toast_string += "\n" + getResources().getString(R.string.preference_auto_stabilise);
 				simple = false;
 			}
-			String photo_mode_string = null;
-			MyApplicationInterface.PhotoMode photo_mode = applicationInterface.getPhotoMode();
-			if( photo_mode == MyApplicationInterface.PhotoMode.DRO ) {
-				photo_mode_string = getResources().getString(R.string.photo_mode_dro);
-			}
-			else if( photo_mode == MyApplicationInterface.PhotoMode.HDR ) {
-				photo_mode_string = getResources().getString(R.string.photo_mode_hdr);
-			}
-			else if( photo_mode == MyApplicationInterface.PhotoMode.ExpoBracketing ) {
-				photo_mode_string = getResources().getString(R.string.photo_mode_expo_bracketing_full);
-			}
-			if( photo_mode_string != null ) {
-				toast_string += "\n" + getResources().getString(R.string.photo_mode) + ": " + photo_mode_string;
-				simple = false;
-			}
+//			String photo_mode_string = null;
+//			MyApplicationInterface.PhotoMode photo_mode = applicationInterface.getPhotoMode();
+//			if( photo_mode == MyApplicationInterface.PhotoMode.DRO ) {
+//				photo_mode_string = getResources().getString(R.string.photo_mode_dro);
+//			}
+//			else if( photo_mode == MyApplicationInterface.PhotoMode.HDR ) {
+//				photo_mode_string = getResources().getString(R.string.photo_mode_hdr);
+//			}
+//			else if( photo_mode == MyApplicationInterface.PhotoMode.ExpoBracketing ) {
+//				photo_mode_string = getResources().getString(R.string.photo_mode_expo_bracketing_full);
+//			}
+//			if( photo_mode_string != null ) {
+//				toast_string += "\n" + getResources().getString(R.string.photo_mode) + ": " + photo_mode_string;
+//				simple = false;
+//			}
 		}
 		if( applicationInterface.getFaceDetectionPref() ) {
 			// important so that the user realises why touching for focus/metering areas won't work - easy to forget that face detection has been turned on!
 			toast_string += "\n" + getResources().getString(R.string.preference_face_detection);
 			simple = false;
 		}
-		String iso_value = sharedPreferences.getString(PreferenceKeys.ISOPreferenceKey, camera_controller.getDefaultISO());
-		if( !iso_value.equals(camera_controller.getDefaultISO()) ) {
-			toast_string += "\nISO: " + iso_value;
-			if( preview.supportsExposureTime() ) {
-				long exposure_time_value = sharedPreferences.getLong(PreferenceKeys.ExposureTimePreferenceKey, camera_controller.getDefaultExposureTime());
-				toast_string += " " + preview.getExposureTimeString(exposure_time_value);
-			}
-			simple = false;
-		}
+//		String iso_value = sharedPreferences.getString(PreferenceKeys.ISOPreferenceKey, camera_controller.getDefaultISO());
+//		if( !iso_value.equals(camera_controller.getDefaultISO()) ) {
+//			toast_string += "\nISO: " + iso_value;
+//			if( preview.supportsExposureTime() ) {
+//				long exposure_time_value = sharedPreferences.getLong(PreferenceKeys.ExposureTimePreferenceKey, camera_controller.getDefaultExposureTime());
+//				toast_string += " " + preview.getExposureTimeString(exposure_time_value);
+//			}
+//			simple = false;
+//		}
 		int current_exposure = camera_controller.getExposureCompensation();
 		if( current_exposure != 0 ) {
 			toast_string += "\n" + preview.getExposureCompensationString(current_exposure);

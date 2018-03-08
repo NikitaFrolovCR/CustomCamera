@@ -1,17 +1,15 @@
 package net.sourceforge.opencamera.CameraController;
 
-import net.sourceforge.opencamera.MyDebug;
-
-import java.util.List;
-
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
-import android.hardware.camera2.DngCreator;
 import android.location.Location;
-import android.media.Image;
 import android.media.MediaRecorder;
 import android.util.Log;
 import android.view.SurfaceHolder;
+
+import net.sourceforge.opencamera.MyDebug;
+
+import java.util.List;
 
 /** CameraController is an abstract class that wraps up the access/control to
  *  the Android camera, so that the rest of the application doesn't have to
@@ -124,17 +122,17 @@ public abstract class CameraController {
 		void onStarted(); // called immediately before we start capturing the picture
 		void onCompleted(); // called after all relevant on*PictureTaken() callbacks have been called and returned
 		void onPictureTaken(byte[] data);
-		/** Only called if RAW is requested.
-		 *  Caller should call image.close() and dngCreator.close() when done with the image.
-		 */
-		void onRawPictureTaken(DngCreator dngCreator, Image image);
-		/** Only called if burst is requested.
-		 */
-		void onBurstPictureTaken(List<byte[]> images);
-		/* This is called for flash_frontscreen_auto or flash_frontscreen_on mode to indicate the caller should light up the screen
-		 * (for flash_frontscreen_auto it will only be called if the scene is considered dark enough to require the screen flash).
-		 * The screen flash can be removed when or after onCompleted() is called.
-		 */
+//		/** Only called if RAW is requested.
+//		 *  Caller should call image.close() and dngCreator.close() when done with the image.
+//		 */
+//		void onRawPictureTaken(DngCreator dngCreator, Image image);
+//		/** Only called if burst is requested.
+//		 */
+//		void onBurstPictureTaken(List<byte[]> images);
+//		/* This is called for flash_frontscreen_auto or flash_frontscreen_on mode to indicate the caller should light up the screen
+//		 * (for flash_frontscreen_auto it will only be called if the scene is considered dark enough to require the screen flash).
+//		 * The screen flash can be removed when or after onCompleted() is called.
+//		 */
 		void onFrontScreenTurnOn();
 	}
 	

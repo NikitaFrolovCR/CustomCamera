@@ -1,23 +1,5 @@
 package net.sourceforge.opencamera;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.List;
-import java.util.Timer;
-import java.util.TimerTask;
-
-import net.sourceforge.opencamera.CameraController.CameraController;
-import net.sourceforge.opencamera.Preview.ApplicationInterface;
-import net.sourceforge.opencamera.Preview.Preview;
-import net.sourceforge.opencamera.Preview.VideoProfile;
-import net.sourceforge.opencamera.UI.DrawPreview;
-
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.Context;
@@ -28,9 +10,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
-import android.hardware.camera2.DngCreator;
 import android.location.Location;
-import android.media.Image;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaRecorder;
 import android.net.Uri;
@@ -47,6 +27,24 @@ import android.util.Pair;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ImageButton;
+
+import net.sourceforge.opencamera.CameraController.CameraController;
+import net.sourceforge.opencamera.Preview.ApplicationInterface;
+import net.sourceforge.opencamera.Preview.Preview;
+import net.sourceforge.opencamera.Preview.VideoProfile;
+import net.sourceforge.opencamera.UI.DrawPreview;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 /** Our implementation of ApplicationInterface, see there for details.
  */
@@ -67,7 +65,7 @@ public class MyApplicationInterface implements ApplicationInterface {
 	private final GyroSensor gyroSensor;
 	private final StorageUtils storageUtils;
 	private final DrawPreview drawPreview;
-	private final ImageSaver imageSaver;
+//	private final ImageSaver imageSaver;
 
 	private final float panorama_pics_per_screen = 2.0f;
 
@@ -127,8 +125,8 @@ public class MyApplicationInterface implements ApplicationInterface {
 			Log.d(TAG, "MyApplicationInterface: time after creating storage utils: " + (System.currentTimeMillis() - debug_time));
 		this.drawPreview = new DrawPreview(main_activity, this);
 		
-		this.imageSaver = new ImageSaver(main_activity);
-		this.imageSaver.start();
+//		this.imageSaver = new ImageSaver(main_activity);
+//		this.imageSaver.start();
 		
         if( savedInstanceState != null ) {
 			// load the things we saved in onSaveInstanceState().
@@ -173,9 +171,9 @@ public class MyApplicationInterface implements ApplicationInterface {
 		if( drawPreview != null ) {
 			drawPreview.onDestroy();
 		}
-		if( imageSaver != null ) {
-			imageSaver.onDestroy();
-		}
+//		if( imageSaver != null ) {
+//			imageSaver.onDestroy();
+//		}
 	}
 
 	LocationSupplier getLocationSupplier() {
@@ -190,9 +188,9 @@ public class MyApplicationInterface implements ApplicationInterface {
 		return storageUtils;
 	}
 	
-	ImageSaver getImageSaver() {
-		return imageSaver;
-	}
+//	ImageSaver getImageSaver() {
+//		return imageSaver;
+//	}
 
 	public DrawPreview getDrawPreview() {
 		return drawPreview;
@@ -312,11 +310,11 @@ public class MyApplicationInterface implements ApplicationInterface {
 		return sharedPreferences.getInt(PreferenceKeys.WhiteBalanceTemperaturePreferenceKey, 5000);
 	}
 
-	@Override
-	public String getISOPref() {
-    	return sharedPreferences.getString(PreferenceKeys.ISOPreferenceKey, "auto");
-    }
-    
+//	@Override
+//	public String getISOPref() {
+//    	return sharedPreferences.getString(PreferenceKeys.ISOPreferenceKey, "auto");
+//    }
+//
     @Override
 	public int getExposureCompensationPref() {
 		String value = sharedPreferences.getString(PreferenceKeys.ExposurePreferenceKey, "0");
@@ -393,20 +391,20 @@ public class MyApplicationInterface implements ApplicationInterface {
 		return image_quality;
 	}
 
-	@Override
-    public int getImageQualityPref(){
-		if( MyDebug.LOG )
-			Log.d(TAG, "getImageQualityPref");
-		// see documentation for getSaveImageQualityPref(): in DRO mode we want to take the photo
-		// at 100% quality for post-processing, the final image will then be saved at the user requested
-		// setting
-		PhotoMode photo_mode = getPhotoMode();
-		if( photo_mode == PhotoMode.DRO )
-			return 100;
-		else if( photo_mode == PhotoMode.NoiseReduction )
-			return 100;
-		return getSaveImageQualityPref();
-    }
+//	@Override
+//    public int getImageQualityPref(){
+//		if( MyDebug.LOG )
+//			Log.d(TAG, "getImageQualityPref");
+//		// see documentation for getSaveImageQualityPref(): in DRO mode we want to take the photo
+//		// at 100% quality for post-processing, the final image will then be saved at the user requested
+//		// setting
+//		PhotoMode photo_mode = getPhotoMode();
+//		if( photo_mode == PhotoMode.DRO )
+//			return 100;
+//		else if( photo_mode == PhotoMode.NoiseReduction )
+//			return 100;
+//		return getSaveImageQualityPref();
+//    }
     
 	@Override
 	public boolean getFaceDetectionPref() {
@@ -765,99 +763,99 @@ public class MyApplicationInterface implements ApplicationInterface {
     	return focus_distance;
     }
     
-    @Override
-	public boolean isExpoBracketingPref() {
-    	PhotoMode photo_mode = getPhotoMode();
-    	if( photo_mode == PhotoMode.HDR || photo_mode == PhotoMode.ExpoBracketing )
-			return true;
-		return false;
-    }
+//    @Override
+//	public boolean isExpoBracketingPref() {
+//    	PhotoMode photo_mode = getPhotoMode();
+//    	if( photo_mode == PhotoMode.HDR || photo_mode == PhotoMode.ExpoBracketing )
+//			return true;
+//		return false;
+//    }
 
-    @Override
-    public boolean isCameraBurstPref() {
-    	PhotoMode photo_mode = getPhotoMode();
-    	if( photo_mode == PhotoMode.NoiseReduction )
-			return true;
-		return false;
-	}
+//    @Override
+//    public boolean isCameraBurstPref() {
+//    	PhotoMode photo_mode = getPhotoMode();
+//    	if( photo_mode == PhotoMode.NoiseReduction )
+//			return true;
+//		return false;
+//	}
+//
+//    @Override
+//    public int getExpoBracketingNImagesPref() {
+//		if( MyDebug.LOG )
+//			Log.d(TAG, "getExpoBracketingNImagesPref");
+//		int n_images;
+//    	PhotoMode photo_mode = getPhotoMode();
+//    	if( photo_mode == PhotoMode.HDR ) {
+//    		// always set 3 images for HDR
+//    		n_images = 3;
+//    	}
+//    	else {
+//			String n_images_s = sharedPreferences.getString(PreferenceKeys.ExpoBracketingNImagesPreferenceKey, "3");
+//			try {
+//				n_images = Integer.parseInt(n_images_s);
+//			}
+//			catch(NumberFormatException exception) {
+//				if( MyDebug.LOG )
+//					Log.e(TAG, "n_images_s invalid format: " + n_images_s);
+//				n_images = 3;
+//			}
+//    	}
+//		if( MyDebug.LOG )
+//			Log.d(TAG, "n_images = " + n_images);
+//		return n_images;
+//    }
 
-    @Override
-    public int getExpoBracketingNImagesPref() {
-		if( MyDebug.LOG )
-			Log.d(TAG, "getExpoBracketingNImagesPref");
-		int n_images;
-    	PhotoMode photo_mode = getPhotoMode();
-    	if( photo_mode == PhotoMode.HDR ) {
-    		// always set 3 images for HDR
-    		n_images = 3;
-    	}
-    	else {
-			String n_images_s = sharedPreferences.getString(PreferenceKeys.ExpoBracketingNImagesPreferenceKey, "3");
-			try {
-				n_images = Integer.parseInt(n_images_s);
-			}
-			catch(NumberFormatException exception) {
-				if( MyDebug.LOG )
-					Log.e(TAG, "n_images_s invalid format: " + n_images_s);
-				n_images = 3;
-			}
-    	}
-		if( MyDebug.LOG )
-			Log.d(TAG, "n_images = " + n_images);
-		return n_images;
-    }
+//    @Override
+//    public double getExpoBracketingStopsPref() {
+//		if( MyDebug.LOG )
+//			Log.d(TAG, "getExpoBracketingStopsPref");
+//		double n_stops;
+//    	PhotoMode photo_mode = getPhotoMode();
+//    	if( photo_mode == PhotoMode.HDR ) {
+//    		// always set 2 stops for HDR
+//    		n_stops = 2.0;
+//    	}
+//    	else {
+//			String n_stops_s = sharedPreferences.getString(PreferenceKeys.ExpoBracketingStopsPreferenceKey, "2");
+//			try {
+//				n_stops = Double.parseDouble(n_stops_s);
+//			}
+//			catch(NumberFormatException exception) {
+//				if( MyDebug.LOG )
+//					Log.e(TAG, "n_stops_s invalid format: " + n_stops_s);
+//				n_stops = 2.0;
+//			}
+//    	}
+//		if( MyDebug.LOG )
+//			Log.d(TAG, "n_stops = " + n_stops);
+//		return n_stops;
+//    }
 
-    @Override
-    public double getExpoBracketingStopsPref() {
-		if( MyDebug.LOG )
-			Log.d(TAG, "getExpoBracketingStopsPref");
-		double n_stops;
-    	PhotoMode photo_mode = getPhotoMode();
-    	if( photo_mode == PhotoMode.HDR ) {
-    		// always set 2 stops for HDR
-    		n_stops = 2.0;
-    	}
-    	else {
-			String n_stops_s = sharedPreferences.getString(PreferenceKeys.ExpoBracketingStopsPreferenceKey, "2");
-			try {
-				n_stops = Double.parseDouble(n_stops_s);
-			}
-			catch(NumberFormatException exception) {
-				if( MyDebug.LOG )
-					Log.e(TAG, "n_stops_s invalid format: " + n_stops_s);
-				n_stops = 2.0;
-			}
-    	}
-		if( MyDebug.LOG )
-			Log.d(TAG, "n_stops = " + n_stops);
-		return n_stops;
-    }
+//    public PhotoMode getPhotoMode() {
+//		// Note, this always should return the true photo mode - if we're in video mode and taking a photo snapshot while
+//		// video recording, the caller should override. We don't override here, as this preference may be used to affect how
+//		// the CameraController is set up, and we don't always re-setup the camera when switching between photo and video modes.
+//		String photo_mode_pref = sharedPreferences.getString(PreferenceKeys.PhotoModePreferenceKey, "preference_photo_mode_std");
+//		boolean dro = photo_mode_pref.equals("preference_photo_mode_dro");
+//		if( dro && main_activity.supportsDRO() )
+//			return PhotoMode.DRO;
+//		boolean hdr = photo_mode_pref.equals("preference_photo_mode_hdr");
+//		if( hdr && main_activity.supportsHDR() )
+//			return PhotoMode.HDR;
+//		boolean expo_bracketing = photo_mode_pref.equals("preference_photo_mode_expo_bracketing");
+//		if( expo_bracketing && main_activity.supportsExpoBracketing() )
+//			return PhotoMode.ExpoBracketing;
+//		boolean noise_reduction = photo_mode_pref.equals("preference_photo_mode_noise_reduction");
+//		if( noise_reduction && main_activity.supportsNoiseReduction() )
+//			return PhotoMode.NoiseReduction;
+//		return PhotoMode.Standard;
+//    }
 
-    public PhotoMode getPhotoMode() {
-		// Note, this always should return the true photo mode - if we're in video mode and taking a photo snapshot while
-		// video recording, the caller should override. We don't override here, as this preference may be used to affect how
-		// the CameraController is set up, and we don't always re-setup the camera when switching between photo and video modes.
-		String photo_mode_pref = sharedPreferences.getString(PreferenceKeys.PhotoModePreferenceKey, "preference_photo_mode_std");
-		boolean dro = photo_mode_pref.equals("preference_photo_mode_dro");
-		if( dro && main_activity.supportsDRO() )
-			return PhotoMode.DRO;
-		boolean hdr = photo_mode_pref.equals("preference_photo_mode_hdr");
-		if( hdr && main_activity.supportsHDR() )
-			return PhotoMode.HDR;
-		boolean expo_bracketing = photo_mode_pref.equals("preference_photo_mode_expo_bracketing");
-		if( expo_bracketing && main_activity.supportsExpoBracketing() )
-			return PhotoMode.ExpoBracketing;
-		boolean noise_reduction = photo_mode_pref.equals("preference_photo_mode_noise_reduction");
-		if( noise_reduction && main_activity.supportsNoiseReduction() )
-			return PhotoMode.NoiseReduction;
-		return PhotoMode.Standard;
-    }
-
-	@Override
-	public boolean getOptimiseAEForDROPref() {
-		PhotoMode photo_mode = getPhotoMode();
-		return( photo_mode == PhotoMode.DRO );
-	}
+//	@Override
+//	public boolean getOptimiseAEForDROPref() {
+//		PhotoMode photo_mode = getPhotoMode();
+//		return( photo_mode == PhotoMode.DRO );
+//	}
 
 	@Override
 	public boolean isRawPref() {
@@ -948,8 +946,8 @@ public class MyApplicationInterface implements ApplicationInterface {
 
 	@Override
 	public void touchEvent(MotionEvent event) {
-		main_activity.getMainUI().clearSeekBar();
-		main_activity.getMainUI().closePopup();
+//		main_activity.getMainUI().clearSeekBar();
+//		main_activity.getMainUI().closePopup();
 		if( main_activity.usingKitKatImmersiveMode() ) {
 			main_activity.setImmersiveMode(false);
 		}
@@ -965,7 +963,7 @@ public class MyApplicationInterface implements ApplicationInterface {
 		view.setImageResource(R.drawable.take_video_recording);
 		view.setContentDescription( getContext().getResources().getString(R.string.stop_video) );
 		view.setTag(R.drawable.take_video_recording); // for testing
-		main_activity.getMainUI().destroyPopup(); // as the available popup options change while recording video
+//		main_activity.getMainUI().destroyPopup(); // as the available popup options change while recording video
 	}
 
 	@Override
@@ -1154,7 +1152,7 @@ public class MyApplicationInterface implements ApplicationInterface {
 		View takePhotoVideoButton = main_activity.findViewById(R.id.take_photo_when_video_recording);
 		takePhotoVideoButton.setVisibility(View.GONE);
 		main_activity.getMainUI().setPauseVideoContentDescription(); // just to be safe
-		main_activity.getMainUI().destroyPopup(); // as the available popup options change while recording video
+//		main_activity.getMainUI().destroyPopup(); // as the available popup options change while recording video
 		if( subtitleVideoTimerTask != null ) {
 			subtitleVideoTimerTask.cancel();
 			subtitleVideoTimerTask = null;
@@ -1408,45 +1406,45 @@ public class MyApplicationInterface implements ApplicationInterface {
     	drawPreview.turnFrontScreenFlashOn();
     }
 
-    private int n_capture_images = 0; // how many calls to onPictureTaken() since the last call to onCaptureStarted()
+//    private int n_capture_images = 0; // how many calls to onPictureTaken() since the last call to onCaptureStarted()
 
 	@Override
 	public void onCaptureStarted() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "onCaptureStarted");
-		n_capture_images = 0;
+//		n_capture_images = 0;
 		drawPreview.onCaptureStarted();
 	}
 
-    @Override
-	public void onPictureCompleted() {
-		if( MyDebug.LOG )
-			Log.d(TAG, "onPictureCompleted");
-
-		PhotoMode photo_mode = getPhotoMode();
-		if( main_activity.getPreview().isVideo() ) {
-			if( MyDebug.LOG )
-				Log.d(TAG, "snapshop mode");
-			// must be in photo snapshot while recording video mode, only support standard photo mode
-			photo_mode = PhotoMode.Standard;
-		}
-		if( photo_mode == PhotoMode.NoiseReduction ) {
-			boolean image_capture_intent = isImageCaptureIntent();
-			boolean do_in_background = saveInBackground(image_capture_intent);
-			imageSaver.finishImageAverage(do_in_background);
-		}
-
-		// call this, so that if pause-preview-after-taking-photo option is set, we remove the "taking photo" border indicator straight away
-		// also even for normal (not pausing) behaviour, good to remove the border asap
-    	drawPreview.cameraInOperation(false);
-    }
+//    @Override
+//	public void onPictureCompleted() {
+//		if( MyDebug.LOG )
+//			Log.d(TAG, "onPictureCompleted");
+//
+//		PhotoMode photo_mode = getPhotoMode();
+//		if( main_activity.getPreview().isVideo() ) {
+//			if( MyDebug.LOG )
+//				Log.d(TAG, "snapshop mode");
+//			// must be in photo snapshot while recording video mode, only support standard photo mode
+//			photo_mode = PhotoMode.Standard;
+//		}
+//		if( photo_mode == PhotoMode.NoiseReduction ) {
+//			boolean image_capture_intent = isImageCaptureIntent();
+//			boolean do_in_background = saveInBackground(image_capture_intent);
+//			imageSaver.finishImageAverage(do_in_background);
+//		}
+//
+//		// call this, so that if pause-preview-after-taking-photo option is set, we remove the "taking photo" border indicator straight away
+//		// also even for normal (not pausing) behaviour, good to remove the border asap
+//    	drawPreview.cameraInOperation(false);
+//    }
 
 	@Override
 	public void cameraClosed() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "cameraClosed");
-		main_activity.getMainUI().clearSeekBar();
-		main_activity.getMainUI().destroyPopup(); // need to close popup - and when camera reopened, it may have different settings
+//		main_activity.getMainUI().clearSeekBar();
+//		main_activity.getMainUI().destroyPopup(); // need to close popup - and when camera reopened, it may have different settings
 		drawPreview.clearContinuousFocusMove();
 	}
 	
@@ -1486,10 +1484,10 @@ public class MyApplicationInterface implements ApplicationInterface {
 		main_activity.getMainUI().layoutUI();
 	}
 	
-	@Override
-	public void multitouchZoom(int new_zoom) {
-		main_activity.getMainUI().setSeekbarZoom(new_zoom);
-	}
+//	@Override
+//	public void multitouchZoom(int new_zoom) {
+//		main_activity.getMainUI().setSeekbarZoom(new_zoom);
+//	}
 
 	@Override
 	public void setCameraIdPref(int cameraId) {
@@ -1570,19 +1568,19 @@ public class MyApplicationInterface implements ApplicationInterface {
 		editor.apply();
 	}
 
-	@Override
-	public void setISOPref(String iso) {
-		SharedPreferences.Editor editor = sharedPreferences.edit();
-		editor.putString(PreferenceKeys.ISOPreferenceKey, iso);
-		editor.apply();
-    }
+//	@Override
+//	public void setISOPref(String iso) {
+//		SharedPreferences.Editor editor = sharedPreferences.edit();
+//		editor.putString(PreferenceKeys.ISOPreferenceKey, iso);
+//		editor.apply();
+//    }
 
-    @Override
-	public void clearISOPref() {
-		SharedPreferences.Editor editor = sharedPreferences.edit();
-		editor.remove(PreferenceKeys.ISOPreferenceKey);
-		editor.apply();
-    }
+//    @Override
+//	public void clearISOPref() {
+//		SharedPreferences.Editor editor = sharedPreferences.edit();
+//		editor.remove(PreferenceKeys.ISOPreferenceKey);
+//		editor.apply();
+//    }
 	
     @Override
 	public void setExposureCompensationPref(int exposure) {
@@ -1834,142 +1832,142 @@ public class MyApplicationInterface implements ApplicationInterface {
 		if( MyDebug.LOG )
 			Log.d(TAG, "sample_factor: " + sample_factor);
 
-		boolean success;
-		PhotoMode photo_mode = getPhotoMode();
-		if( main_activity.getPreview().isVideo() ) {
-			if( MyDebug.LOG )
-				Log.d(TAG, "snapshop mode");
-			// must be in photo snapshot while recording video mode, only support standard photo mode
-			photo_mode = PhotoMode.Standard;
-		}
-		if( photo_mode == PhotoMode.NoiseReduction ) {
-			if( n_capture_images == 1 ) {
-				ImageSaver.Request.SaveBase save_base = ImageSaver.Request.SaveBase.SAVEBASE_NONE;
-				String save_base_preference = sharedPreferences.getString(PreferenceKeys.NRSaveExpoPreferenceKey, "preference_nr_save_no");
-				switch( save_base_preference ) {
-					case "preference_nr_save_single":
-						save_base = ImageSaver.Request.SaveBase.SAVEBASE_FIRST;
-						break;
-					case "preference_nr_save_all":
-						save_base = ImageSaver.Request.SaveBase.SAVEBASE_ALL;
-						break;
-				}
-
-				imageSaver.startImageAverage(true,
-					save_base,
-					image_capture_intent, image_capture_intent_uri,
-					using_camera2, image_quality,
-					do_auto_stabilise, level_angle,
-					is_front_facing,
-					mirror,
-					current_date,
-					preference_stamp, preference_textstamp, font_size, color, pref_style, preference_stamp_dateformat, preference_stamp_timeformat, preference_stamp_gpsformat,
-					store_location, location, store_geo_direction, geo_direction,
-					sample_factor);
-			}
-			imageSaver.addImageAverage(images.get(0));
-			success = true;
-		}
-		else {
-			success = imageSaver.saveImageJpeg(do_in_background, is_hdr, save_expo, images,
-					image_capture_intent, image_capture_intent_uri,
-					using_camera2, image_quality,
-					do_auto_stabilise, level_angle,
-					is_front_facing,
-					mirror,
-					current_date,
-					preference_stamp, preference_textstamp, font_size, color, pref_style, preference_stamp_dateformat, preference_stamp_timeformat, preference_stamp_gpsformat,
-					store_location, location, store_geo_direction, geo_direction,
-					sample_factor);
-		}
-
-		if( MyDebug.LOG )
-			Log.d(TAG, "saveImage complete, success: " + success);
-		
-		return success;
+//		boolean success;
+//		PhotoMode photo_mode = getPhotoMode();
+//		if( main_activity.getPreview().isVideo() ) {
+//			if( MyDebug.LOG )
+//				Log.d(TAG, "snapshop mode");
+//			// must be in photo snapshot while recording video mode, only support standard photo mode
+//			photo_mode = PhotoMode.Standard;
+//		}
+//		if( photo_mode == PhotoMode.NoiseReduction ) {
+//			if( n_capture_images == 1 ) {
+//				ImageSaver.Request.SaveBase save_base = ImageSaver.Request.SaveBase.SAVEBASE_NONE;
+//				String save_base_preference = sharedPreferences.getString(PreferenceKeys.NRSaveExpoPreferenceKey, "preference_nr_save_no");
+//				switch( save_base_preference ) {
+//					case "preference_nr_save_single":
+//						save_base = ImageSaver.Request.SaveBase.SAVEBASE_FIRST;
+//						break;
+//					case "preference_nr_save_all":
+//						save_base = ImageSaver.Request.SaveBase.SAVEBASE_ALL;
+//						break;
+//				}
+////
+////				imageSaver.startImageAverage(true,
+////					save_base,
+////					image_capture_intent, image_capture_intent_uri,
+////					using_camera2, image_quality,
+////					do_auto_stabilise, level_angle,
+////					is_front_facing,
+////					mirror,
+////					current_date,
+////					preference_stamp, preference_textstamp, font_size, color, pref_style, preference_stamp_dateformat, preference_stamp_timeformat, preference_stamp_gpsformat,
+////					store_location, location, store_geo_direction, geo_direction,
+////					sample_factor);
+//			}
+////			imageSaver.addImageAverage(images.get(0));
+////			success = true;
+//		}
+//		else {
+//			success = imageSaver.saveImageJpeg(do_in_background, is_hdr, save_expo, images,
+//					image_capture_intent, image_capture_intent_uri,
+//					using_camera2, image_quality,
+//					do_auto_stabilise, level_angle,
+//					is_front_facing,
+//					mirror,
+//					current_date,
+//					preference_stamp, preference_textstamp, font_size, color, pref_style, preference_stamp_dateformat, preference_stamp_timeformat, preference_stamp_gpsformat,
+//					store_location, location, store_geo_direction, geo_direction,
+//					sample_factor);
+//		}
+//
+//		if( MyDebug.LOG )
+//			Log.d(TAG, "saveImage complete, success: " + success);
+//
+		return true;
 	}
 
-    @Override
-	public boolean onPictureTaken(byte [] data, Date current_date) {
-		if( MyDebug.LOG )
-			Log.d(TAG, "onPictureTaken");
-
-		n_capture_images++;
-		if( MyDebug.LOG )
-			Log.d(TAG, "n_capture_images is now " + n_capture_images);
-
-		List<byte []> images = new ArrayList<>();
-		images.add(data);
-
-		boolean is_hdr = false;
-		// note, multi-image HDR and expo is handled under onBurstPictureTaken; here we look for DRO, as that's the photo mode to set
-		// single image HDR
-		PhotoMode photo_mode = getPhotoMode();
-		if( main_activity.getPreview().isVideo() ) {
-			if( MyDebug.LOG )
-				Log.d(TAG, "snapshop mode");
-			// must be in photo snapshot while recording video mode, only support standard photo mode
-			photo_mode = PhotoMode.Standard;
-		}
-		if( photo_mode == PhotoMode.DRO ) {
-			is_hdr = true;
-		}
-		boolean success = saveImage(is_hdr, false, images, current_date);
-
-		if( MyDebug.LOG )
-			Log.d(TAG, "onPictureTaken complete, success: " + success);
-		
-		return success;
-	}
+//    @Override
+//	public boolean onPictureTaken(byte [] data, Date current_date) {
+//		if( MyDebug.LOG )
+//			Log.d(TAG, "onPictureTaken");
+//
+////		n_capture_images++;
+////		if( MyDebug.LOG )
+////			Log.d(TAG, "n_capture_images is now " + n_capture_images);
+////
+////		List<byte []> images = new ArrayList<>();
+////		images.add(data);
+////
+////		boolean is_hdr = false;
+////		// note, multi-image HDR and expo is handled under onBurstPictureTaken; here we look for DRO, as that's the photo mode to set
+////		// single image HDR
+////		PhotoMode photo_mode = getPhotoMode();
+////		if( main_activity.getPreview().isVideo() ) {
+////			if( MyDebug.LOG )
+////				Log.d(TAG, "snapshop mode");
+////			// must be in photo snapshot while recording video mode, only support standard photo mode
+////			photo_mode = PhotoMode.Standard;
+////		}
+////		if( photo_mode == PhotoMode.DRO ) {
+////			is_hdr = true;
+////		}
+////		boolean success = saveImage(is_hdr, false, images, current_date);
+////
+////		if( MyDebug.LOG )
+////			Log.d(TAG, "onPictureTaken complete, success: " + success);
+////
+//		return success;
+//	}
     
-    @Override
-	public boolean onBurstPictureTaken(List<byte []> images, Date current_date) {
-		if( MyDebug.LOG )
-			Log.d(TAG, "onBurstPictureTaken: received " + images.size() + " images");
+//    @Override
+//	public boolean onBurstPictureTaken(List<byte []> images, Date current_date) {
+//		if( MyDebug.LOG )
+//			Log.d(TAG, "onBurstPictureTaken: received " + images.size() + " images");
+//
+//		boolean success;
+//		PhotoMode photo_mode = getPhotoMode();
+//		if( main_activity.getPreview().isVideo() ) {
+//			if( MyDebug.LOG )
+//				Log.d(TAG, "snapshop mode");
+//			// must be in photo snapshot while recording video mode, only support standard photo mode
+//			photo_mode = PhotoMode.Standard;
+//		}
+//		if( photo_mode == PhotoMode.HDR ) {
+//			if( MyDebug.LOG )
+//				Log.d(TAG, "HDR mode");
+//			boolean save_expo = sharedPreferences.getBoolean(PreferenceKeys.HDRSaveExpoPreferenceKey, false);
+//			if( MyDebug.LOG )
+//				Log.d(TAG, "save_expo: " + save_expo);
+//
+//			success = saveImage(true, save_expo, images, current_date);
+//		}
+//		else {
+//			if( MyDebug.LOG ) {
+//				Log.d(TAG, "exposure bracketing mode mode");
+//				if( photo_mode != PhotoMode.ExpoBracketing )
+//					Log.e(TAG, "onBurstPictureTaken called with unexpected photo mode?!: " + photo_mode);
+//			}
+//
+//			success = saveImage(false, true, images, current_date);
+//		}
+//		return success;
+//    }
 
-		boolean success;
-		PhotoMode photo_mode = getPhotoMode();
-		if( main_activity.getPreview().isVideo() ) {
-			if( MyDebug.LOG )
-				Log.d(TAG, "snapshop mode");
-			// must be in photo snapshot while recording video mode, only support standard photo mode
-			photo_mode = PhotoMode.Standard;
-		}
-		if( photo_mode == PhotoMode.HDR ) {
-			if( MyDebug.LOG )
-				Log.d(TAG, "HDR mode");
-			boolean save_expo = sharedPreferences.getBoolean(PreferenceKeys.HDRSaveExpoPreferenceKey, false);
-			if( MyDebug.LOG )
-				Log.d(TAG, "save_expo: " + save_expo);
-
-			success = saveImage(true, save_expo, images, current_date);
-		}
-		else {
-			if( MyDebug.LOG ) {
-				Log.d(TAG, "exposure bracketing mode mode");
-				if( photo_mode != PhotoMode.ExpoBracketing )
-					Log.e(TAG, "onBurstPictureTaken called with unexpected photo mode?!: " + photo_mode);
-			}
-			
-			success = saveImage(false, true, images, current_date);
-		}
-		return success;
-    }
-
-    @Override
-	public boolean onRawPictureTaken(DngCreator dngCreator, Image image, Date current_date) {
-		if( MyDebug.LOG )
-			Log.d(TAG, "onRawPictureTaken");
-        System.gc();
-
-		boolean do_in_background = saveInBackground(false);
-
-		boolean success = imageSaver.saveImageRaw(do_in_background, dngCreator, image, current_date);
-		
-		if( MyDebug.LOG )
-			Log.d(TAG, "onRawPictureTaken complete");
-		return success;
-	}
+//    @Override
+//	public boolean onRawPictureTaken(DngCreator dngCreator, Image image, Date current_date) {
+//		if( MyDebug.LOG )
+//			Log.d(TAG, "onRawPictureTaken");
+//        System.gc();
+//
+//		boolean do_in_background = saveInBackground(false);
+//
+//		boolean success = imageSaver.saveImageRaw(do_in_background, dngCreator, image, current_date);
+//
+//		if( MyDebug.LOG )
+//			Log.d(TAG, "onRawPictureTaken complete");
+//		return success;
+//	}
     
     void addLastImage(File file, boolean share) {
 		if( MyDebug.LOG ) {
@@ -2101,9 +2099,9 @@ public class MyApplicationInterface implements ApplicationInterface {
 		return this.drawPreview.hasThumbnailAnimation();
 	}
 	
-	public HDRProcessor getHDRProcessor() {
-		return imageSaver.getHDRProcessor();
-	}
+//	public HDRProcessor getHDRProcessor() {
+//		return imageSaver.getHDRProcessor();
+//	}
 	
 	public boolean test_set_available_memory = false;
 	public long test_available_memory = 0;
