@@ -1,24 +1,15 @@
 package net.sourceforge.opencamera;
 
-import java.io.File;
-import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
-import java.util.TimeZone;
-
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.ContentUris;
-//import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
-//import android.location.Location;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
@@ -27,11 +18,21 @@ import android.preference.PreferenceManager;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.provider.MediaStore.Images;
-import android.provider.MediaStore.Video;
 import android.provider.MediaStore.Images.ImageColumns;
+import android.provider.MediaStore.Video;
 import android.provider.MediaStore.Video.VideoColumns;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
+
+import java.io.File;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+import java.util.TimeZone;
+
+//import android.content.ContentValues;
+//import android.location.Location;
 
 /** Provides access to the filesystem. Supports both standard and Storage
  *  Access Framework.
@@ -110,90 +111,12 @@ public class StorageUtils {
         	        c.close(); 
     	        }
     		}
- 			/*{
- 				// hack: problem on Camera2 API (at least on Nexus 6) that if geotagging is enabled, then the resultant image has incorrect Exif TAG_GPS_DATESTAMP (GPSDateStamp) set (tends to be around 2038 - possibly a driver bug of casting long to int?)
- 				// whilst we don't yet correct for that bug, the more immediate problem is that it also messes up the DATE_TAKEN field in the media store, which messes up Gallery apps
- 				// so for now, we correct it based on the DATE_ADDED value.
-    	        String[] CONTENT_PROJECTION = { Images.Media.DATE_ADDED }; 
-    	        Cursor c = context.getContentResolver().query(uri, CONTENT_PROJECTION, null, null, null); 
-    	        if( c == null ) { 
-		 			if( MyDebug.LOG )
-		 				Log.e(TAG, "Couldn't resolve given uri [1]: " + uri); 
-    	        }
-    	        else if( !c.moveToFirst() ) { 
-		 			if( MyDebug.LOG )
-		 				Log.e(TAG, "Couldn't resolve given uri [2]: " + uri); 
-    	        }
-    	        else {
-        	        long date_added = c.getLong(c.getColumnIndex(Images.Media.DATE_ADDED)); 
-		 			if( MyDebug.LOG )
-		 				Log.e(TAG, "replace date_taken with date_added: " + date_added); 
-					ContentValues values = new ContentValues(); 
-					values.put(Images.Media.DATE_TAKEN, date_added*1000); 
-					context.getContentResolver().update(uri, values, null, null);
-        	        c.close(); 
-    	        }
- 			}*/
-    	}
+}
     	else if( is_new_video ) {
     		context.sendBroadcast(new Intent("android.hardware.action.NEW_VIDEO", uri));
-
-    		/*String[] CONTENT_PROJECTION = { Video.Media.DURATION }; 
-	        Cursor c = context.getContentResolver().query(uri, CONTENT_PROJECTION, null, null, null); 
-	        if( c == null ) { 
-	 			if( MyDebug.LOG )
-	 				Log.e(TAG, "Couldn't resolve given uri [1]: " + uri); 
-	        }
-	        else if( !c.moveToFirst() ) { 
-	 			if( MyDebug.LOG )
-	 				Log.e(TAG, "Couldn't resolve given uri [2]: " + uri); 
-	        }
-	        else {
-    	        long duration = c.getLong(c.getColumnIndex(Video.Media.DURATION)); 
-	 			if( MyDebug.LOG )
-	 				Log.e(TAG, "replace duration: " + duration); 
-				ContentValues values = new ContentValues(); 
-				values.put(Video.Media.DURATION, 1000); 
-				context.getContentResolver().update(uri, values, null, null);
-    	        c.close(); 
-	        }*/
     	}
 	}
 	
-	/*public Uri broadcastFileRaw(File file, Date current_date, Location location) {
-		if( MyDebug.LOG )
-			Log.d(TAG, "broadcastFileRaw: " + file.getAbsolutePath());
-        ContentValues values = new ContentValues(); 
-        values.put(ImageColumns.TITLE, file.getName().substring(0, file.getName().lastIndexOf(".")));
-        values.put(ImageColumns.DISPLAY_NAME, file.getName());
-        values.put(ImageColumns.DATE_TAKEN, current_date.getTime()); 
-        values.put(ImageColumns.MIME_TYPE, "image/dng");
-        //values.put(ImageColumns.MIME_TYPE, "image/jpeg");
-        if( location != null ) {
-            values.put(ImageColumns.LATITUDE, location.getLatitude());
-            values.put(ImageColumns.LONGITUDE, location.getLongitude());
-        }
-        // leave ORIENTATION for now - this doesn't seem to get inserted for JPEGs anyway (via MediaScannerConnection.scanFile())
-        values.put(ImageColumns.DATA, file.getAbsolutePath());
-        //values.put(ImageColumns.DATA, "/storage/emulated/0/DCIM/OpenCamera/blah.dng");
-        Uri uri = null;
-        try {
-    		uri = context.getContentResolver().insert(Images.Media.EXTERNAL_CONTENT_URI, values); 
- 			if( MyDebug.LOG )
- 				Log.d(TAG, "inserted media uri: " + uri);
-    		context.sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, uri));
-        }
-        catch (Throwable th) { 
-	        // This can happen when the external volume is already mounted, but 
-	        // MediaScanner has not notify MediaProvider to add that volume. 
-	        // The picture is still safe and MediaScanner will find it and 
-	        // insert it into MediaProvider. The only problem is that the user 
-	        // cannot click the thumbnail to review the picture. 
-	        Log.e(TAG, "Failed to write MediaStore" + th); 
-	    }
-        return uri;
-	}*/
-
 	/** Sends a "broadcast" for the new file. This is necessary so that Android recognises the new file without needing a reboot:
 	 *  - So that they show up when connected to a PC using MTP.
 	 *  - For JPEGs, so that they show up in gallery applications.

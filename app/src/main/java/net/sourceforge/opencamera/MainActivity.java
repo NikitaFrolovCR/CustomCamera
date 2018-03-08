@@ -482,8 +482,6 @@ public class MainActivity extends Activity {
             }
         }
 
-        setModeFromIntents(savedInstanceState);
-
         // load icons
         preloadIcons(R.array.flash_icons);
         preloadIcons(R.array.focus_mode_icons);
@@ -564,54 +562,7 @@ public class MainActivity extends Activity {
 		}*/
     }
 
-    /**
-     * Switches modes if required, if called from a relevant intent/tile.
-     */
-    private void setModeFromIntents(Bundle savedInstanceState) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "setModeFromIntents");
-        if (savedInstanceState != null) {
-            // If we're restoring from a saved state, we shouldn't be resetting any modes
-            if (MyDebug.LOG)
-                Log.d(TAG, "restoring from saved state");
-            return;
-        }
-        String action = this.getIntent().getAction();
-        if (MediaStore.INTENT_ACTION_VIDEO_CAMERA.equals(action) || MediaStore.ACTION_VIDEO_CAPTURE.equals(action)) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "launching from video intent");
-            applicationInterface.setVideoPref(true);
-        } else if (MediaStore.ACTION_IMAGE_CAPTURE.equals(action) || MediaStore.ACTION_IMAGE_CAPTURE_SECURE.equals(action) || MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA.equals(action) || MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA_SECURE.equals(action)) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "launching from photo intent");
-            applicationInterface.setVideoPref(false);
-        } else if (MyTileService.TILE_ID.equals(action) || ACTION_SHORTCUT_CAMERA.equals(action)) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "launching from quick settings tile or application shortcut for Open Camera: photo mode");
-            applicationInterface.setVideoPref(false);
-        } else if (MyTileServiceVideo.TILE_ID.equals(action) || ACTION_SHORTCUT_VIDEO.equals(action)) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "launching from quick settings tile or application shortcut for Open Camera: video mode");
-            applicationInterface.setVideoPref(true);
-        } else if (MyTileServiceFrontCamera.TILE_ID.equals(action) || ACTION_SHORTCUT_SELFIE.equals(action)) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "launching from quick settings tile or application shortcut for Open Camera: selfie mode");
-            for (int i = 0; i < preview.getCameraControllerManager().getNumberOfCameras(); i++) {
-                if (preview.getCameraControllerManager().isFrontFacing(i)) {
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "found front camera: " + i);
-                    applicationInterface.setCameraIdPref(i);
-                    break;
-                }
-            }
-        } else if (ACTION_SHORTCUT_GALLERY.equals(action)) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "launching from application shortcut for Open Camera: gallery");
-            openGallery();
-        }
-    }
-
-    /**
+   /**
      * Determine whether we support Camera2 API.
      */
     private void initCamera2Support() {
@@ -984,14 +935,6 @@ public class MainActivity extends Activity {
             setWindowFlagsForCamera();
 
             preferencesListener.stopListening();
-
-            // Update the cached settings in DrawPreview
-            // Note that some GUI related settings won't trigger preferencesListener.anyChanges(), so
-            // we always call this. Perhaps we could add more classifications to PreferencesListener
-            // to mark settings that need us to update DrawPreview but not call updateForSettings().
-            // However, DrawPreview.updateSettings() should be a quick function (the main point is
-            // to avoid reading the preferences in every single frame).
-            applicationInterface.getDrawPreview().updateSettings();
 
         }
         super.onBackPressed();

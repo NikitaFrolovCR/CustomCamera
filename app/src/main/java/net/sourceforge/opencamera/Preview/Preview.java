@@ -164,8 +164,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 	
 	private boolean has_zoom;
 	private int max_zoom_factor;
-	private final GestureDetector gestureDetector;
-	private final ScaleGestureDetector scaleGestureDetector;
 	private List<Integer> zoom_ratios;
 	private float minimum_focus_distance;
 	private boolean touch_was_multitouch;
@@ -178,8 +176,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 	private List<String> supported_focus_values; // our "values" format
 	private int current_focus_index = -1; // this is an index into the supported_focus_values array, or -1 if no focus modes available
 	private int max_num_focus_areas;
-	private boolean continuous_focus_move_is_started;
-	
+
 	private boolean is_exposure_lock_supported;
 	private boolean is_exposure_locked;
 
@@ -331,15 +328,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
     		this.cameraSurface = new MySurfaceView(getContext(), this);
     		camera_controller_manager = new CameraControllerManager1();
         }
-		/*{
-			FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
-			layoutParams.gravity = Gravity.CENTER;
-			cameraSurface.getView().setLayoutParams(layoutParams);
-		}*/
-
-	    gestureDetector = new GestureDetector(getContext(), new GestureDetector.SimpleOnGestureListener());
-	    gestureDetector.setOnDoubleTapListener(new DoubleTapListener());
-	    scaleGestureDetector = new ScaleGestureDetector(getContext(), new ScaleListener());
 		accessibility_manager = (AccessibilityManager)activity.getSystemService(Activity.ACCESSIBILITY_SERVICE);
 
 		parent.addView(cameraSurface.getView());
@@ -347,20 +335,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 			parent.addView(canvasView);
 		}
 	}
-	
-	/*private void previewToCamera(float [] coords) {
-		float alpha = coords[0] / (float)this.getWidth();
-		float beta = coords[1] / (float)this.getHeight();
-		coords[0] = 2000.0f * alpha - 1000.0f;
-		coords[1] = 2000.0f * beta - 1000.0f;
-	}*/
-
-	/*private void cameraToPreview(float [] coords) {
-		float alpha = (coords[0] + 1000.0f) / 2000.0f;
-		float beta = (coords[1] + 1000.0f) / 2000.0f;
-		coords[0] = alpha * (float)this.getWidth();
-		coords[1] = beta * (float)this.getHeight();
-	}*/
 
 	private Resources getResources() {
 		return cameraSurface.getView().getResources();
@@ -474,12 +448,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 	public boolean touchEvent(MotionEvent event) {
 		if( MyDebug.LOG )
 			Log.d(TAG, "touch event at : " + event.getX() + " , " + event.getY() + " at time " + event.getEventTime());
-        if( gestureDetector.onTouchEvent(event) ) {
-    		if( MyDebug.LOG )
-    			Log.d(TAG, "touch event handled by gestureDetector");
-        	return true;
-        }
-        scaleGestureDetector.onTouchEvent(event);
         if( camera_controller == null ) {
     		if( MyDebug.LOG )
     			Log.d(TAG, "received touch event, but camera not available");
@@ -598,15 +566,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 		}
 		return true;
 	}
-    
-	private class DoubleTapListener extends GestureDetector.SimpleOnGestureListener {
-		@Override
-		public boolean onDoubleTap(MotionEvent e) {
-			if( MyDebug.LOG )
-				Log.d(TAG, "onDoubleTap()");
-			return Preview.this.onDoubleTap();
-		}
-    }
     
     public void clearFocusAreas() {
 		if( MyDebug.LOG )
@@ -1070,10 +1029,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 		successfully_focused = false;
 		preview_targetRatio = 0.0;
 		// n.b., don't reset has_set_location, as we can remember the location when switching camera
-		if( continuous_focus_move_is_started ) {
-			continuous_focus_move_is_started = false;
-			applicationInterface.onContinuousFocusMove(false);
-		}
 		applicationInterface.cameraClosed();
 		cancelTimer();
 		cancelBurst();
@@ -4036,43 +3991,12 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 		removePendingContinuousFocusReset(); // this isn't strictly needed as the reset_continuous_focus_runnable will check the ui focus mode when it runs, but good to remove it anyway
 		autofocus_in_continuous_mode = false;
         camera_controller.setFocusValue(focus_value);
-		setupContinuousFocusMove();
 		clearFocusAreas();
 		if( auto_focus && !focus_value.equals("focus_mode_locked") ) {
 			tryAutoFocus(false, false);
 		}
 	}
-	
-	private void setupContinuousFocusMove() {
-		if( MyDebug.LOG )
-			Log.d(TAG, "setupContinuousFocusMove()" );
-		if( continuous_focus_move_is_started ) {
-			continuous_focus_move_is_started = false;
-			applicationInterface.onContinuousFocusMove(false);
-		}
-		String focus_value = current_focus_index != -1 ? supported_focus_values.get(current_focus_index) : null;
-		if( MyDebug.LOG )
-			Log.d(TAG, "focus_value is " + focus_value);
-		if( camera_controller != null && focus_value != null && focus_value.equals("focus_mode_continuous_picture") && !this.is_video ) {
-			if( MyDebug.LOG )
-				Log.d(TAG, "set continuous picture focus move callback");
-			camera_controller.setContinuousFocusMoveCallback(new CameraController.ContinuousFocusMoveCallback() {
-				@Override
-				public void onContinuousFocusMove(boolean start) {
-					if( start != continuous_focus_move_is_started ) { // filter out repeated calls with same start value
-						continuous_focus_move_is_started = start;
-						count_cameraContinuousFocusMoving++;
-						applicationInterface.onContinuousFocusMove(start);
-					}
-				}
-			});
-		}
-		else if( camera_controller != null ) {
-			if( MyDebug.LOG )
-				Log.d(TAG, "remove continuous picture focus move callback");
-			camera_controller.setContinuousFocusMoveCallback(null);
-		}
-	}
+
 
 	public void toggleExposureLock() {
 		if( MyDebug.LOG )
@@ -5423,7 +5347,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 			}
 		}
 		this.setPreviewPaused(false);
-		this.setupContinuousFocusMove();
 		if( MyDebug.LOG ) {
 			Log.d(TAG, "startCameraPreview: total time for startCameraPreview: " + (System.currentTimeMillis() - debug_time));
 		}

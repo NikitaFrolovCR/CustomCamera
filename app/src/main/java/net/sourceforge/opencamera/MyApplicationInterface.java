@@ -5,13 +5,11 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.location.Location;
-import android.media.MediaMetadataRetriever;
 import android.media.MediaRecorder;
 import android.net.Uri;
 import android.os.Build;
@@ -885,14 +883,6 @@ public class MyApplicationInterface implements ApplicationInterface {
 	@Override
 	public void cameraSetup() {
 		main_activity.cameraSetup();
-		drawPreview.clearContinuousFocusMove();
-	}
-
-	@Override
-	public void onContinuousFocusMove(boolean start) {
-		if( MyDebug.LOG )
-			Log.d(TAG, "onContinuousFocusMove: " + start);
-		drawPreview.onContinuousFocusMove(start);
 	}
 
     private int n_panorama_pics = 0;
@@ -1199,64 +1189,6 @@ public class MyApplicationInterface implements ApplicationInterface {
 				main_activity.finish();
 			}
 		}
-		else if( done ) {
-			// create thumbnail
-			long debug_time = System.currentTimeMillis();
-			Bitmap thumbnail = null;
-			MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-			try {
-				if( video_method == VIDEOMETHOD_FILE ) {
-					File file = new File(filename);
-					retriever.setDataSource(file.getPath());
-				}
-				else {
-					ParcelFileDescriptor pfd_saf = getContext().getContentResolver().openFileDescriptor(uri, "r");
-					retriever.setDataSource(pfd_saf.getFileDescriptor());
-				}
-				thumbnail = retriever.getFrameAtTime(-1);
-			}
-			catch(FileNotFoundException | /*IllegalArgumentException |*/ RuntimeException e) {
-				// video file wasn't saved or corrupt video file?
-				Log.d(TAG, "failed to find thumbnail");
-				e.printStackTrace();
-			}
-			finally {
-				try {
-					retriever.release();
-				}
-				catch(RuntimeException ex) {
-					// ignore
-				}
-			}
-			if( thumbnail != null ) {
-				ImageButton galleryButton = (ImageButton) main_activity.findViewById(R.id.gallery);
-				int width = thumbnail.getWidth();
-				int height = thumbnail.getHeight();
-				if( MyDebug.LOG )
-					Log.d(TAG, "    video thumbnail size " + width + " x " + height);
-				if( width > galleryButton.getWidth() ) {
-					float scale = (float) galleryButton.getWidth() / width;
-					int new_width = Math.round(scale * width);
-					int new_height = Math.round(scale * height);
-					if( MyDebug.LOG )
-						Log.d(TAG, "    scale video thumbnail to " + new_width + " x " + new_height);
-					Bitmap scaled_thumbnail = Bitmap.createScaledBitmap(thumbnail, new_width, new_height, true);
-					// careful, as scaled_thumbnail is sometimes not a copy!
-					if( scaled_thumbnail != thumbnail ) {
-						thumbnail.recycle();
-						thumbnail = scaled_thumbnail;
-					}
-				}
-				final Bitmap thumbnail_f = thumbnail;
-				main_activity.runOnUiThread(new Runnable() {
-					public void run() {
-						updateThumbnail(thumbnail_f, true);
-					}
-				});
-			}
-			if( MyDebug.LOG )
-				Log.d(TAG, "    time to create thumbnail: " + (System.currentTimeMillis() - debug_time));
-		}
 	}
 
 	@Override
@@ -1395,28 +1327,9 @@ public class MyApplicationInterface implements ApplicationInterface {
 //    private int n_capture_images = 0; // how many calls to onPictureTaken() since the last call to onCaptureStarted()
 
 	@Override
-	public void onCaptureStarted() {
-		if( MyDebug.LOG )
-			Log.d(TAG, "onCaptureStarted");
-//		n_capture_images = 0;
-		drawPreview.onCaptureStarted();
-	}
-
-	@Override
 	public void cameraClosed() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "cameraClosed");
-		drawPreview.clearContinuousFocusMove();
-	}
-	
-	void updateThumbnail(Bitmap thumbnail, boolean is_video) {
-		if( MyDebug.LOG )
-			Log.d(TAG, "updateThumbnail");
-		main_activity.updateGalleryIcon(thumbnail);
-		drawPreview.updateThumbnail(thumbnail);
-		if( !is_video && this.getPausePreviewPref() ) {
-			drawPreview.showLastImage();
-		}
 	}
 	
 	@Override
