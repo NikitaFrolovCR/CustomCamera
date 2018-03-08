@@ -15,7 +15,6 @@ import android.preference.PreferenceManager;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.util.Pair;
-import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ImageButton;
 
@@ -537,17 +536,10 @@ public class MyApplicationInterface implements ApplicationInterface {
 	public void cameraSetup() {
 		main_activity.cameraSetup();
 	}
-
-	@Override
-	public void touchEvent(MotionEvent event) {
-		if( main_activity.usingKitKatImmersiveMode() ) {
-			main_activity.setImmersiveMode(false);
-		}
-	}
 	
 	@Override
 	public void startingVideo() {
-		ImageButton view = (ImageButton)main_activity.findViewById(R.id.take_photo);
+		ImageButton view = (ImageButton)main_activity.findViewById(R.id.record_video);
 		view.setImageResource(R.drawable.take_video_recording);
 		view.setContentDescription( getContext().getResources().getString(R.string.stop_video) );
 		view.setTag(R.drawable.take_video_recording); // for testing
@@ -555,13 +547,7 @@ public class MyApplicationInterface implements ApplicationInterface {
 
 	@Override
 	public void startedVideo() {
-		if( MyDebug.LOG )
-			Log.d(TAG, "startedVideo()");
 		if( Build.VERSION.SDK_INT >= Build.VERSION_CODES.N ) {
-			if( !( main_activity.getMainUI().inImmersiveMode() && main_activity.usingKitKatImmersiveModeEverything() ) ) {
-				View pauseVideoButton = main_activity.findViewById(R.id.pause_video);
-				pauseVideoButton.setVisibility(View.VISIBLE);
-			}
 			main_activity.getMainUI().setPauseVideoContentDescription();
 		}
 		final int video_method = this.createOutputVideoMethod();
@@ -697,7 +683,7 @@ public class MyApplicationInterface implements ApplicationInterface {
 	public void stoppingVideo() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "stoppingVideo()");
-		ImageButton view = (ImageButton)main_activity.findViewById(R.id.take_photo);
+		ImageButton view = (ImageButton)main_activity.findViewById(R.id.record_video);
 		view.setImageResource(R.drawable.take_video_selector);
 		view.setContentDescription( getContext().getResources().getString(R.string.start_video) );
 		view.setTag(R.drawable.take_video_selector); // for testing
@@ -827,7 +813,7 @@ public class MyApplicationInterface implements ApplicationInterface {
 		else {
 			error_message = getContext().getResources().getString(R.string.failed_to_record_video);
 		}
-		ImageButton view = (ImageButton)main_activity.findViewById(R.id.take_photo);
+		ImageButton view = (ImageButton)main_activity.findViewById(R.id.record_video);
 		view.setImageResource(R.drawable.take_video_selector);
 		view.setContentDescription( getContext().getResources().getString(R.string.start_video) );
 		view.setTag(R.drawable.take_video_selector); // for testing
@@ -851,7 +837,7 @@ public class MyApplicationInterface implements ApplicationInterface {
 	
 	@Override
 	public void onFailedCreateVideoFileError() {
-		ImageButton view = (ImageButton)main_activity.findViewById(R.id.take_photo);
+		ImageButton view = (ImageButton)main_activity.findViewById(R.id.record_video);
 		view.setImageResource(R.drawable.take_video_selector);
 		view.setContentDescription( getContext().getResources().getString(R.string.start_video) );
 		view.setTag(R.drawable.take_video_selector); // for testing
@@ -862,18 +848,14 @@ public class MyApplicationInterface implements ApplicationInterface {
 		if( MyDebug.LOG )
 			Log.d(TAG, "cameraInOperation: " + in_operation);
     	if( !in_operation && used_front_screen_flash ) {
-    		main_activity.setBrightnessForCamera(false); // ensure screen brightness matches user preference, after using front screen flash
     		used_front_screen_flash = false;
     	}
-    	main_activity.getMainUI().showGUI(!in_operation, is_video);
     }
 
 //    private int n_capture_images = 0; // how many calls to onPictureTaken() since the last call to onCaptureStarted()
 
 	@Override
 	public void cameraClosed() {
-		if( MyDebug.LOG )
-			Log.d(TAG, "cameraClosed");
 	}
 	
 	@Override

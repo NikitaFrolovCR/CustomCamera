@@ -1,21 +1,19 @@
 package net.sourceforge.opencamera.Preview.CameraSurface;
 
-import net.sourceforge.opencamera.MyDebug;
-import net.sourceforge.opencamera.CameraController.CameraController;
-import net.sourceforge.opencamera.CameraController.CameraControllerException;
-import net.sourceforge.opencamera.Preview.Preview;
-
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.media.MediaRecorder;
 import android.os.Handler;
 import android.util.Log;
-import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+
+import net.sourceforge.opencamera.CameraController.CameraController;
+import net.sourceforge.opencamera.CameraController.CameraControllerException;
+import net.sourceforge.opencamera.MyDebug;
+import net.sourceforge.opencamera.Preview.Preview;
 
 /** Provides support for the surface used for the preview, using a SurfaceView.
  */
@@ -76,12 +74,6 @@ public class MySurfaceView extends SurfaceView implements CameraSurface {
 	public void setVideoRecorder(MediaRecorder video_recorder) {
     	video_recorder.setPreviewDisplay(this.getHolder().getSurface());
 	}
-
-	@SuppressLint("ClickableViewAccessibility")
-	@Override
-	public boolean onTouchEvent(MotionEvent event) {
-		return preview.touchEvent(event);
-    }
 
 	@Override
 	public void onDraw(Canvas canvas) {

@@ -3,21 +3,15 @@ package net.sourceforge.opencamera;
 import android.Manifest;
 import android.annotation.TargetApi;
 import android.app.Activity;
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.hardware.Sensor;
-import android.hardware.SensorManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
 import android.os.StatFs;
 import android.preference.PreferenceManager;
 import android.renderscript.RenderScript;
@@ -25,10 +19,8 @@ import android.speech.tts.TextToSpeech;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.util.Log;
-import android.view.Menu;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.WindowManager;
 
 import net.sourceforge.opencamera.CameraController.CameraControllerManager2;
 import net.sourceforge.opencamera.Preview.Preview;
@@ -49,11 +41,7 @@ public class MainActivity extends Activity {
     final private int MY_PERMISSIONS_REQUEST_CAMERA = 0;
     final private int MY_PERMISSIONS_REQUEST_STORAGE = 1;
     final private int MY_PERMISSIONS_REQUEST_RECORD_AUDIO = 2;
-    // for testing; must be volatile for test project reading the state
-    public volatile Bitmap gallery_bitmap;
-    private SensorManager mSensorManager;
-    private Sensor mSensorAccelerometer;
-    private Sensor mSensorMagnetic;
+
     private MainUI mainUI;
 
     //private boolean ui_placement_right = true;
@@ -61,17 +49,7 @@ public class MainActivity extends Activity {
     private Preview preview;
     private boolean supports_camera2;
 
-    private boolean camera_in_background; // whether the camera is covered by a fragment/dialog (such as settings or folder picker)
-
     private TextToSpeech textToSpeech;
-    private int audio_noise_sensitivity = -1;
-    // for audio "noise" trigger option
-    private int last_level = -1;
-    private long time_quiet_loud = -1;
-    private long time_last_audio_trigger_photo = -1;
-    private Handler immersive_timer_handler = null;
-    private Runnable immersive_timer_runnable = null;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         long debug_time = 0;
@@ -82,10 +60,6 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         PreferenceManager.setDefaultValues(this, R.xml.preferences, false); // initialise any unset preferences to their default values
-        if (MyDebug.LOG)
-            Log.d(TAG, "onCreate: time after setting default preference values: " + (System.currentTimeMillis() - debug_time));
-
-        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
 
 
         // set up components
@@ -94,41 +68,6 @@ public class MainActivity extends Activity {
 
         // determine whether we support Camera2 API
         initCamera2Support();
-
-        // set up window flags for normal operation
-        setWindowFlagsForCamera();
-        if (MyDebug.LOG)
-            Log.d(TAG, "onCreate: time after setting window flags: " + (System.currentTimeMillis() - debug_time));
-
-        if (MyDebug.LOG)
-            Log.d(TAG, "onCreate: time after updating folder history: " + (System.currentTimeMillis() - debug_time));
-
-        // set up sensors
-        mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-
-        // accelerometer sensor (for device orientation)
-        if (mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) != null) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "found accelerometer");
-            mSensorAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        } else {
-            if (MyDebug.LOG)
-                Log.d(TAG, "no support for accelerometer");
-        }
-        if (MyDebug.LOG)
-            Log.d(TAG, "onCreate: time after creating accelerometer sensor: " + (System.currentTimeMillis() - debug_time));
-
-        // magnetic sensor (for compass direction)
-        if (mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD) != null) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "found magnetic sensor");
-            mSensorMagnetic = mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
-        } else {
-            if (MyDebug.LOG)
-                Log.d(TAG, "no support for magnetic sensor");
-        }
-        if (MyDebug.LOG)
-            Log.d(TAG, "onCreate: time after creating magnetic sensor: " + (System.currentTimeMillis() - debug_time));
 
         // set up the camera and its preview
         preview = new Preview(applicationInterface, ((ViewGroup) this.findViewById(R.id.preview)));
@@ -147,39 +86,7 @@ public class MainActivity extends Activity {
         // setContentView()!
         // To be safe, we also do so for take_photo and zoom_seekbar (we already know we've had no reported crashes for focus_seekbar,
         // however).
-        View takePhotoButton = findViewById(R.id.take_photo);
-        takePhotoButton.setVisibility(View.INVISIBLE);
 
-        // set up listener to handle immersive mode options
-        View decorView = getWindow().getDecorView();
-        decorView.setOnSystemUiVisibilityChangeListener
-                (new View.OnSystemUiVisibilityChangeListener() {
-                    @Override
-                    public void onSystemUiVisibilityChange(int visibility) {
-                        // Note that system bars will only be "visible" if none of the
-                        // LOW_PROFILE, HIDE_NAVIGATION, or FULLSCREEN flags are set.
-                        if (!usingKitKatImmersiveMode())
-                            return;
-                        if (MyDebug.LOG)
-                            Log.d(TAG, "onSystemUiVisibilityChange: " + visibility);
-                        if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) {
-                            if (MyDebug.LOG)
-                                Log.d(TAG, "system bars now visible");
-                            // The system bars are visible. Make any desired
-                            // adjustments to your UI, such as showing the action bar or
-                            // other navigational controls.
-                            mainUI.setImmersiveMode(false);
-                            setImmersiveTimer();
-                        } else {
-                            if (MyDebug.LOG)
-                                Log.d(TAG, "system bars now NOT visible");
-                            // The system bars are NOT visible. Make any desired
-                            // adjustments to your UI, such as hiding the action bar or
-                            // other navigational controls.
-                            mainUI.setImmersiveMode(true);
-                        }
-                    }
-                });
 
         setDeviceDefaults();
     }
@@ -258,26 +165,6 @@ public class MainActivity extends Activity {
             Log.d(TAG, "supports_camera2? " + supports_camera2);
     }
 
-    private void preloadIcons(int icons_id) {
-        long debug_time = 0;
-        if (MyDebug.LOG) {
-            Log.d(TAG, "preloadIcons: " + icons_id);
-            debug_time = System.currentTimeMillis();
-        }
-        String[] icons = getResources().getStringArray(icons_id);
-        for (String icon : icons) {
-            int resource = getResources().getIdentifier(icon, null, this.getApplicationContext().getPackageName());
-            if (MyDebug.LOG)
-                Log.d(TAG, "load resource: " + resource);
-            Bitmap bm = BitmapFactory.decodeResource(getResources(), resource);
-            this.preloaded_bitmap_resources.put(resource, bm);
-        }
-        if (MyDebug.LOG) {
-            Log.d(TAG, "preloadIcons: total time for preloadIcons: " + (System.currentTimeMillis() - debug_time));
-            Log.d(TAG, "size of preloaded_bitmap_resources: " + preloaded_bitmap_resources.size());
-        }
-    }
-
     @Override
     protected void onDestroy() {
         if (MyDebug.LOG) {
@@ -311,136 +198,6 @@ public class MainActivity extends Activity {
     }
 
     @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.main, menu);
-        return true;
-    }
-
-    private void setFirstTimeFlag() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "setFirstTimeFlag");
-        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putBoolean(PreferenceKeys.FirstTimePreferenceKey, true);
-        editor.apply();
-    }
-
-    void launchOnlineHelp() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "launchOnlineHelp");
-        Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://opencamera.sourceforge.io/"));
-        startActivity(browserIntent);
-    }
-
-    /**
-     * Listens to audio noise and decides when there's been a "loud" noise to trigger taking a photo.
-     */
-    public void onAudio(int level) {
-        boolean audio_trigger = false;
-        /*if( level > 150 ) {
-            if( MyDebug.LOG )
-				Log.d(TAG, "loud noise!: " + level);
-			audio_trigger = true;
-		}*/
-
-        if (last_level == -1) {
-            last_level = level;
-            return;
-        }
-        int diff = level - last_level;
-
-        if (MyDebug.LOG)
-            Log.d(TAG, "noise_sensitivity: " + audio_noise_sensitivity);
-
-        if (diff > audio_noise_sensitivity) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "got louder!: " + last_level + " to " + level + " , diff: " + diff);
-            time_quiet_loud = System.currentTimeMillis();
-            if (MyDebug.LOG)
-                Log.d(TAG, "    time: " + time_quiet_loud);
-        } else if (diff < -audio_noise_sensitivity && time_quiet_loud != -1) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "got quieter!: " + last_level + " to " + level + " , diff: " + diff);
-            long time_now = System.currentTimeMillis();
-            long duration = time_now - time_quiet_loud;
-            if (MyDebug.LOG) {
-                Log.d(TAG, "stopped being loud - was loud since :" + time_quiet_loud);
-                Log.d(TAG, "    time_now: " + time_now);
-                Log.d(TAG, "    duration: " + duration);
-            }
-            if (duration < 1500) {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "audio_trigger set");
-                audio_trigger = true;
-            }
-            time_quiet_loud = -1;
-        } else {
-            if (MyDebug.LOG)
-                Log.d(TAG, "audio level: " + last_level + " to " + level + " , diff: " + diff);
-        }
-
-        last_level = level;
-
-        if (audio_trigger) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "audio trigger");
-            // need to run on UI thread so that this function returns quickly (otherwise we'll have lag in processing the audio)
-            // but also need to check we're not currently taking a photo or on timer, so we don't repeatedly queue up takePicture() calls, or cancel a timer
-            long time_now = System.currentTimeMillis();
-            SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-            boolean want_audio_listener = sharedPreferences.getString(PreferenceKeys.AudioControlPreferenceKey, "none").equals("noise");
-            if (time_last_audio_trigger_photo != -1 && time_now - time_last_audio_trigger_photo < 5000) {
-                // avoid risk of repeatedly being triggered - as well as problem of being triggered again by the camera's own "beep"!
-                if (MyDebug.LOG)
-                    Log.d(TAG, "ignore loud noise due to too soon since last audio triggerred photo:" + (time_now - time_last_audio_trigger_photo));
-            } else if (!want_audio_listener) {
-                // just in case this is a callback from an AudioListener before it's been freed (e.g., if there's a loud noise when exiting settings after turning the option off
-                if (MyDebug.LOG)
-                    Log.d(TAG, "ignore loud noise due to audio listener option turned off");
-            } else {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "audio trigger from loud noise");
-                time_last_audio_trigger_photo = time_now;
-                audioTrigger();
-            }
-        }
-    }
-
-    /* Audio trigger - either loud sound, or speech recognition.
-	 * This performs some additional checks before taking a photo.
-	 */
-    private void audioTrigger() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "ignore audio trigger due to popup open");
-//		if( popupIsOpen() ) {
-//			if( MyDebug.LOG )
-//				Log.d(TAG, "ignore audio trigger due to popup open");
-//		}
-        else if (camera_in_background) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "ignore audio trigger due to camera in background");
-        } else if (preview.isTakingPhotoOrOnTimer()) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "ignore audio trigger due to already taking photo or on timer");
-        } else if (preview.isVideoRecording()) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "ignore audio trigger due to already recording video");
-        } else {
-            if (MyDebug.LOG)
-                Log.d(TAG, "schedule take picture due to loud noise");
-            //takePicture();
-            this.runOnUiThread(new Runnable() {
-                public void run() {
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "taking picture due to audio trigger");
-                    takePicture(false);
-                }
-            });
-        }
-    }
-
-    @Override
     protected void onResume() {
         long debug_time = 0;
         if (MyDebug.LOG) {
@@ -457,19 +214,6 @@ public class MainActivity extends Activity {
 
         if (MyDebug.LOG) {
             Log.d(TAG, "onResume: total time to resume: " + (System.currentTimeMillis() - debug_time));
-        }
-    }
-
-    @Override
-    public void onWindowFocusChanged(boolean hasFocus) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "onWindowFocusChanged: " + hasFocus);
-        super.onWindowFocusChanged(hasFocus);
-        if (!this.camera_in_background && hasFocus) {
-            // low profile mode is cleared when app goes into background
-            // and for Kit Kat immersive mode, we want to set up the timer
-            // we do in onWindowFocusChanged rather than onResume(), to also catch when window lost focus due to notification bar being dragged down (which prevents resetting of immersive mode)
-            initImmersiveMode();
         }
     }
 
@@ -549,177 +293,6 @@ public class MainActivity extends Activity {
         }
     }
 
-
-    @Override
-    public void onBackPressed() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "close settings");
-        setWindowFlagsForCamera();
-        super.onBackPressed();
-    }
-
-    public boolean usingKitKatImmersiveMode() {
-        // whether we are using a Kit Kat style immersive mode (either hiding GUI, or everything)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-            String immersive_mode = sharedPreferences.getString(PreferenceKeys.ImmersiveModePreferenceKey, "immersive_mode_low_profile");
-            if (immersive_mode.equals("immersive_mode_gui") || immersive_mode.equals("immersive_mode_everything"))
-                return true;
-        }
-        return false;
-    }
-
-    public boolean usingKitKatImmersiveModeEverything() {
-        // whether we are using a Kit Kat style immersive mode for everything
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-            String immersive_mode = sharedPreferences.getString(PreferenceKeys.ImmersiveModePreferenceKey, "immersive_mode_low_profile");
-            if (immersive_mode.equals("immersive_mode_everything"))
-                return true;
-        }
-        return false;
-    }
-
-    private void setImmersiveTimer() {
-        if (immersive_timer_handler != null && immersive_timer_runnable != null) {
-            immersive_timer_handler.removeCallbacks(immersive_timer_runnable);
-        }
-        immersive_timer_handler = new Handler();
-        immersive_timer_handler.postDelayed(immersive_timer_runnable = new Runnable() {
-            @Override
-            public void run() {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "setImmersiveTimer: run");
-                if (!camera_in_background && usingKitKatImmersiveMode())
-                    setImmersiveMode(true);
-            }
-        }, 5000);
-    }
-
-    public void initImmersiveMode() {
-        if (!usingKitKatImmersiveMode()) {
-            setImmersiveMode(true);
-        } else {
-            // don't start in immersive mode, only after a timer
-            setImmersiveTimer();
-        }
-    }
-
-    void setImmersiveMode(boolean on) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "setImmersiveMode: " + on);
-        // n.b., preview.setImmersiveMode() is called from onSystemUiVisibilityChange()
-        if (on) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && usingKitKatImmersiveMode()) {
-                getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_IMMERSIVE | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN);
-            } else {
-                SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-                String immersive_mode = sharedPreferences.getString(PreferenceKeys.ImmersiveModePreferenceKey, "immersive_mode_low_profile");
-                if (immersive_mode.equals("immersive_mode_low_profile"))
-                    getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LOW_PROFILE);
-                else
-                    getWindow().getDecorView().setSystemUiVisibility(0);
-            }
-        } else
-            getWindow().getDecorView().setSystemUiVisibility(0);
-    }
-
-    /**
-     * Sets the brightness level for normal operation (when camera preview is visible).
-     * If force_max is true, this always forces maximum brightness; otherwise this depends on user preference.
-     */
-    void setBrightnessForCamera(boolean force_max) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "setBrightnessForCamera");
-        // set screen to max brightness - see http://stackoverflow.com/questions/11978042/android-screen-brightness-max-value
-        // done here rather than onCreate, so that changing it in preferences takes effect without restarting app
-        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-        final WindowManager.LayoutParams layout = getWindow().getAttributes();
-        if (force_max || sharedPreferences.getBoolean(PreferenceKeys.getMaxBrightnessPreferenceKey(), true)) {
-            layout.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL;
-        } else {
-            layout.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
-        }
-
-        // this must be called from the ui thread
-        // sometimes this method may be called not on UI thread, e.g., Preview.takePhotoWhenFocused->CameraController2.takePicture
-        // ->CameraController2.runFakePrecapture->Preview/onFrontScreenTurnOn->MyApplicationInterface.turnFrontScreenFlashOn
-        // -> this.setBrightnessForCamera
-        this.runOnUiThread(new Runnable() {
-            public void run() {
-                getWindow().setAttributes(layout);
-            }
-        });
-    }
-
-    /**
-     * Sets the window flags for normal operation (when camera preview is visible).
-     */
-    public void setWindowFlagsForCamera() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "setWindowFlagsForCamera");
-    	/*{
-    		Intent intent = new Intent(this, MyWidgetProvider.class);
-    		intent.setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE);
-    		AppWidgetManager widgetManager = AppWidgetManager.getInstance(this);
-    		ComponentName widgetComponent = new ComponentName(this, MyWidgetProvider.class);
-    		int[] widgetIds = widgetManager.getAppWidgetIds(widgetComponent);
-    		intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, widgetIds);
-    		sendBroadcast(intent);
-    	}*/
-        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-
-        // force to landscape mode
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-        //setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE); // testing for devices with unusual sensor orientation (e.g., Nexus 5X)
-        // keep screen active - see http://stackoverflow.com/questions/2131948/force-screen-on
-        if (sharedPreferences.getBoolean(PreferenceKeys.getKeepDisplayOnPreferenceKey(), true)) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "do keep screen on");
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        } else {
-            if (MyDebug.LOG)
-                Log.d(TAG, "don't keep screen on");
-            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        }
-        if (sharedPreferences.getBoolean(PreferenceKeys.getShowWhenLockedPreferenceKey(), true)) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "do show when locked");
-            // keep Open Camera on top of screen-lock (will still need to unlock when going to gallery or settings)
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED);
-        } else {
-            if (MyDebug.LOG)
-                Log.d(TAG, "don't show when locked");
-            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED);
-        }
-
-        setBrightnessForCamera(false);
-
-        initImmersiveMode();
-        camera_in_background = false;
-    }
-
-    /**
-     * Sets the window flags for when the settings window is open.
-     */
-    public void setWindowFlagsForSettings() {
-        // allow screen rotation
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
-        // revert to standard screen blank behaviour
-        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        // settings should still be protected by screen lock
-        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED);
-
-        {
-            WindowManager.LayoutParams layout = getWindow().getAttributes();
-            layout.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
-            getWindow().setAttributes(layout);
-        }
-
-        setImmersiveMode(false);
-        camera_in_background = true;
-    }
-
     /**
      * Listens for the response from the Storage Access Framework dialog to select a folder
      * (as opened with openFolderChooserDialogSAF()).
@@ -769,31 +342,8 @@ public class MainActivity extends Activity {
     }
 
     void cameraSetup() {
-        long debug_time = 0;
-        if (MyDebug.LOG) {
-            Log.d(TAG, "cameraSetup");
-            debug_time = System.currentTimeMillis();
-        }
-        if (MyDebug.LOG)
-            Log.d(TAG, "cameraSetup: time after handling Force 4K option: " + (System.currentTimeMillis() - debug_time));
-
-        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-        View takePhotoButton = findViewById(R.id.take_photo);
-        if (sharedPreferences.getBoolean(PreferenceKeys.ShowTakePhotoPreferenceKey, true)) {
-            if (!mainUI.inImmersiveMode()) {
-                takePhotoButton.setVisibility(View.VISIBLE);
-            }
-        } else {
-            takePhotoButton.setVisibility(View.INVISIBLE);
-        }
-
-        mainUI.setTakePhotoIcon();
+        mainUI.setVideoIcon();
         mainUI.setSwitchCameraContentDescription();
-        if (MyDebug.LOG)
-            Log.d(TAG, "cameraSetup: time after setting take photo icon: " + (System.currentTimeMillis() - debug_time));
-
-        if (MyDebug.LOG)
-            Log.d(TAG, "cameraSetup: total time for cameraSetup: " + (System.currentTimeMillis() - debug_time));
     }
 
     public boolean supportsCamera2() {

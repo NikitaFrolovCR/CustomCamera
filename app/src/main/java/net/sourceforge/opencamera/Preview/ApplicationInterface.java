@@ -4,7 +4,6 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.net.Uri;
 import android.util.Pair;
-import android.view.MotionEvent;
 
 import java.io.File;
 import java.io.IOException;
@@ -75,7 +74,6 @@ public interface ApplicationInterface {
 
 	// methods that transmit information/events (up to the Application whether to do anything or not)
     void cameraSetup(); // called when the camera is (re-)set up - should update UI elements/parameters that depend on camera settings
-	void touchEvent(MotionEvent event);
 	void startingVideo(); // called just before video recording starts
 	void startedVideo(); // called just after video recording starts
 	void stoppingVideo(); // called just before video recording stops; note that if startingVideo() is called but then video recording fails to start, this method will still be called, but startedVideo() and stoppedVideo() won't be called

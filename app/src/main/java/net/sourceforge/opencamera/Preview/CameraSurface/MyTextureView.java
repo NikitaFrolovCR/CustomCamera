@@ -1,18 +1,16 @@
 package net.sourceforge.opencamera.Preview.CameraSurface;
 
-import net.sourceforge.opencamera.MyDebug;
-import net.sourceforge.opencamera.CameraController.CameraController;
-import net.sourceforge.opencamera.CameraController.CameraControllerException;
-import net.sourceforge.opencamera.Preview.Preview;
-
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Matrix;
 import android.media.MediaRecorder;
 import android.util.Log;
-import android.view.MotionEvent;
 import android.view.TextureView;
 import android.view.View;
+
+import net.sourceforge.opencamera.CameraController.CameraController;
+import net.sourceforge.opencamera.CameraController.CameraControllerException;
+import net.sourceforge.opencamera.MyDebug;
+import net.sourceforge.opencamera.Preview.Preview;
 
 /** Provides support for the surface used for the preview, using a TextureView.
  */
@@ -57,17 +55,6 @@ public class MyTextureView extends TextureView implements CameraSurface {
 	public void setVideoRecorder(MediaRecorder video_recorder) {
 		// should be no need to do anything (see documentation for MediaRecorder.setPreviewDisplay())
 	}
-
-	@SuppressLint("ClickableViewAccessibility")
-	@Override
-	public boolean onTouchEvent(MotionEvent event) {
-		return preview.touchEvent(event);
-    }
-
-	/*@Override
-	public void onDraw(Canvas canvas) {
-		preview.draw(canvas);
-	}*/
 
     @Override
     protected void onMeasure(int widthSpec, int heightSpec) {

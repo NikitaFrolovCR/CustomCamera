@@ -98,8 +98,8 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
     private static final int FOCUS_FAILED = 2;
     private static final int FOCUS_DONE = 3;
     // accelerometer and geomagnetic sensor info
-    private static final float sensor_alpha = 0.8f; // for filter
     private final boolean using_android_l;
+    private int current_orientation; // orientation received by onOrientationChanged
 
     //private boolean ui_placement_right = true;
     private final ApplicationInterface applicationInterface;
@@ -111,20 +111,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
     private final IntentFilter battery_ifilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
     private final Timer batteryCheckVideoTimer = new Timer();
     private final VideoQualityHandler video_quality_handler = new VideoQualityHandler();
-    private final ToastBoxer flash_toast = new ToastBoxer();
-    private final ToastBoxer focus_toast = new ToastBoxer();
-    private final ToastBoxer take_photo_toast = new ToastBoxer();
-    private final ToastBoxer pause_video_toast = new ToastBoxer();
-    private final ToastBoxer seekbar_toast = new ToastBoxer();
     private final RectF face_rect = new RectF();
-    private final AccessibilityManager accessibility_manager;
-    private final float[] gravity = new float[3];
-    private final float[] geomagnetic = new float[3];
-    private final float[] deviceRotation = new float[9];
-    private final float[] cameraRotation = new float[9];
-    private final float[] deviceInclination = new float[9];
-    private final float[] geo_direction = new float[3];
-    private final float[] new_geo_direction = new float[3];
     private final DecimalFormat decimal_format_1dp = new DecimalFormat("#.#");
     private final DecimalFormat decimal_format_2dp = new DecimalFormat("#.##");
     /* If the user touches to focus in continuous mode, we switch the camera_controller to autofocus mode.
@@ -134,8 +121,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
     private final Handler reset_continuous_focus_handler = new Handler();
     public volatile int count_cameraStartPreview;
     public volatile int count_cameraAutoFocus;
-    public volatile int count_cameraTakePicture;
-    public volatile int count_cameraContinuousFocusMoving;
     public volatile boolean test_fail_open_camera;
     public volatile boolean test_video_failure;
     public volatile boolean test_ticker_called; // set from MySurfaceView or CanvasView
@@ -172,50 +157,27 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
     private int remaining_burst_photos;
     private int remaining_restart_video;
     private boolean is_preview_started;
-    private int current_orientation; // orientation received by onOrientationChanged
     private int current_rotation; // orientation relative to camera's orientation (used for parameters.setRotation())
-    private boolean has_level_angle;
-    private double natural_level_angle; // "level" angle of device, before applying any calibration and without accounting for screen orientation
-    private double level_angle; // "level" angle of device, including calibration
-    private double orig_level_angle; // "level" angle of device, including calibration, but without accounting for screen orientation
-    private boolean has_pitch_angle;
-    private double pitch_angle;
     private boolean has_zoom;
     private int max_zoom_factor;
     private List<Integer> zoom_ratios;
     private float minimum_focus_distance;
-    private boolean touch_was_multitouch;
-    private float touch_orig_x;
-    private float touch_orig_y;
+
     private List<String> supported_flash_values; // our "values" format
     private int current_flash_index = -1; // this is an index into the supported_flash_values array, or -1 if no flash modes available
     private List<String> supported_focus_values; // our "values" format
     private int current_focus_index = -1; // this is an index into the supported_focus_values array, or -1 if no focus modes available
-    private int max_num_focus_areas;
-    private boolean is_exposure_lock_supported;
-    private boolean is_exposure_locked;
-    private List<String> color_effects;
-    private List<String> scene_modes;
-    private List<String> white_balances;
-    private List<String> isos;
+
     private boolean supports_white_balance_temperature;
-    private int min_temperature;
-    private int max_temperature;
+
     private boolean supports_iso_range;
     private int min_iso;
     private int max_iso;
-    private boolean supports_exposure_time;
-    private long min_exposure_time;
-    private long max_exposure_time;
+
     private List<String> exposures;
     private int min_exposure;
     private int max_exposure;
-    private float exposure_step;
-    private boolean supports_expo_bracketing;
-    private int max_expo_bracketing_n_images;
-    private boolean supports_raw;
-    private float view_angle_x;
-    private float view_angle_y;
+
     private List<CameraController.Size> supported_preview_sizes;
     private List<CameraController.Size> sizes;
     private int current_size_index = -1; // this is an index into the sizes array, or -1 if sizes not yet set
@@ -224,31 +186,22 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
     private boolean video_high_speed;
     private boolean supports_video_high_speed;
     private CameraController.Size video_high_speed_size;
-    private Toast last_toast;
-    private int ui_rotation;
+
     private boolean supports_face_detection;
     private boolean using_face_detection;
     private CameraController.Face[] faces_detected;
     private boolean supports_video_stabilization;
-    private boolean supports_photo_video_recording;
-    private boolean can_disable_shutter_sound;
+
     private boolean has_focus_area;
-    private int focus_screen_x;
-    private int focus_screen_y;
+
     private long focus_complete_time = -1;
-    private long focus_started_time = -1;
+
     private int focus_success = FOCUS_DONE;
     private String set_flash_value_after_autofocus = "";
-    private boolean take_photo_after_autofocus; // set to take a photo when the in-progress autofocus has completed; if setting, remember to call camera_controller.setCaptureFollowAutofocusHint()
-    private boolean successfully_focused;
-    private long successfully_focused_time = -1;
-    private boolean has_gravity;
-    private boolean has_geomagnetic;
-    private boolean has_geo_direction;
+
     private Runnable reset_continuous_focus_runnable;
     private boolean autofocus_in_continuous_mode;
     // for testing; must be volatile for test project reading the state
-    private boolean is_test; // whether called from OpenCamera.test testing
     public Preview(ApplicationInterface applicationInterface, ViewGroup parent) {
         if (MyDebug.LOG) {
             Log.d(TAG, "new Preview");
@@ -256,18 +209,8 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 
         this.applicationInterface = applicationInterface;
 
-        Activity activity = (Activity) this.getContext();
-        if (activity.getIntent() != null && activity.getIntent().getExtras() != null) {
-            // whether called from testing
-            is_test = activity.getIntent().getExtras().getBoolean("test_project");
-            if (MyDebug.LOG)
-                Log.d(TAG, "is_test: " + is_test);
-        }
-
         this.using_android_l = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && applicationInterface.useCamera2();
-        if (MyDebug.LOG) {
-            Log.d(TAG, "using_android_l?: " + using_android_l);
-        }
+
 
         boolean using_texture_view = false;
         if (using_android_l) {
@@ -285,7 +228,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             this.cameraSurface = new MySurfaceView(getContext(), this);
             camera_controller_manager = new CameraControllerManager1();
         }
-        accessibility_manager = (AccessibilityManager) activity.getSystemService(Activity.ACCESSIBILITY_SERVICE);
+
 
         parent.addView(cameraSurface.getView());
         if (canvasView != null) {
@@ -400,11 +343,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         }
         return optimalSize;
     }
-
-	/*Matrix getPreviewToCameraMatrix() {
-		calculatePreviewToCameraMatrix();
-		return preview_to_camera_matrix;
-	}*/
 
     public static int[] matchPreviewFpsToVideo(List<int[]> fps_ranges, int video_frame_rate) {
         if (MyDebug.LOG)
@@ -616,128 +554,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         ArrayList<CameraController.Area> areas = new ArrayList<>();
         areas.add(new CameraController.Area(rect, 1000));
         return areas;
-    }
-
-    public boolean touchEvent(MotionEvent event) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "touch event at : " + event.getX() + " , " + event.getY() + " at time " + event.getEventTime());
-        if (camera_controller == null) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "received touch event, but camera not available");
-            return true;
-        }
-        applicationInterface.touchEvent(event);
-		/*if( MyDebug.LOG ) {
-			Log.d(TAG, "touch event: " + event.getAction());
-		}*/
-        if (event.getPointerCount() != 1) {
-            //multitouch_time = System.currentTimeMillis();
-            touch_was_multitouch = true;
-            return true;
-        }
-        if (event.getAction() != MotionEvent.ACTION_UP) {
-            if (event.getAction() == MotionEvent.ACTION_DOWN && event.getPointerCount() == 1) {
-                touch_was_multitouch = false;
-                if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                    touch_orig_x = event.getX();
-                    touch_orig_y = event.getY();
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "touch down at " + touch_orig_x + " , " + touch_orig_y);
-                }
-            }
-            return true;
-        }
-        // now only have to handle MotionEvent.ACTION_UP from this point onwards
-
-        if (touch_was_multitouch) {
-            return true;
-        }
-        if (!this.is_video && this.isTakingPhotoOrOnTimer()) {
-            // if video, okay to refocus when recording
-            return true;
-        }
-
-        // ignore swipes
-        {
-            float x = event.getX();
-            float y = event.getY();
-            float diff_x = x - touch_orig_x;
-            float diff_y = y - touch_orig_y;
-            float dist2 = diff_x * diff_x + diff_y * diff_y;
-            float scale = getResources().getDisplayMetrics().density;
-            float tol = 31 * scale + 0.5f; // convert dps to pixels (about 0.5cm)
-            if (MyDebug.LOG) {
-                Log.d(TAG, "touched from " + touch_orig_x + " , " + touch_orig_y + " to " + x + " , " + y);
-                Log.d(TAG, "dist: " + Math.sqrt(dist2));
-                Log.d(TAG, "tol: " + tol);
-            }
-            if (dist2 > tol * tol) {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "touch was a swipe");
-                return true;
-            }
-        }
-
-        // note, we always try to force start the preview (in case is_preview_paused has become false)
-        // except if recording video (firstly, the preview should be running; secondly, we don't want to reset the phase!)
-        if (!this.is_video) {
-            startCameraPreview();
-        }
-        cancelAutoFocus();
-
-        if (camera_controller != null && !this.using_face_detection) {
-            this.has_focus_area = false;
-            ArrayList<CameraController.Area> areas = getAreas(event.getX(), event.getY());
-            if (camera_controller.setFocusAndMeteringArea(areas)) {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "set focus (and metering?) area");
-                this.has_focus_area = true;
-                this.focus_screen_x = (int) event.getX();
-                this.focus_screen_y = (int) event.getY();
-            } else {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "didn't set focus area in this mode, may have set metering");
-                // don't set has_focus_area in this mode
-            }
-        }
-
-        if (!this.is_video && applicationInterface.getTouchCapturePref()) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "touch to capture");
-            // interpret as if user had clicked take photo/video button, except that we set the focus/metering areas
-            this.takePicturePressed(false);
-            return true;
-        }
-
-        tryAutoFocus(false, true);
-        return true;
-    }
-
-    public boolean onDoubleTap() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "onDoubleTap()");
-        if (!is_video && applicationInterface.getDoubleTapCapturePref()) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "double-tap to capture");
-            // interpret as if user had clicked take photo/video button (don't need to set focus/metering, as this was done in touchEvent() for the first touch of the double-tap)
-            takePicturePressed(false);
-        }
-        return true;
-    }
-
-    public void clearFocusAreas() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "clearFocusAreas()");
-        if (camera_controller == null) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "camera not opened!");
-            return;
-        }
-        // don't cancelAutoFocus() here, otherwise we get sluggish zoom behaviour on Camera2 API
-        camera_controller.clearFocusAndMetering();
-        has_focus_area = false;
-        focus_success = FOCUS_DONE;
-        successfully_focused = false;
     }
 
     public void getMeasureSpec(int[] spec, int widthSpec, int heightSpec) {
@@ -1110,14 +926,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         removePendingContinuousFocusReset();
         has_focus_area = false;
         focus_success = FOCUS_DONE;
-        focus_started_time = -1;
-        synchronized (this) {
-            // synchronise for consistency (keep FindBugs happy)
-            take_photo_after_autofocus = false;
-            // no need to call camera_controller.setCaptureFollowAutofocusHint() as we're closing the camera
-        }
         set_flash_value_after_autofocus = "";
-        successfully_focused = false;
         preview_targetRatio = 0.0;
         // n.b., don't reset has_set_location, as we can remember the location when switching camera
         applicationInterface.cameraClosed();
@@ -1272,16 +1081,8 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         preview_h = 0;
         has_focus_area = false;
         focus_success = FOCUS_DONE;
-        focus_started_time = -1;
-        synchronized (this) {
-            // synchronise for consistency (keep FindBugs happy)
-            take_photo_after_autofocus = false;
-            // no need to call camera_controller.setCaptureFollowAutofocusHint() as we're opening the camera
-        }
         set_flash_value_after_autofocus = "";
-        successfully_focused = false;
         preview_targetRatio = 0.0;
-        scene_modes = null;
         has_zoom = false;
         max_zoom_factor = 0;
         minimum_focus_distance = 0.0f;
@@ -1290,29 +1091,13 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         supports_face_detection = false;
         using_face_detection = false;
         supports_video_stabilization = false;
-        supports_photo_video_recording = false;
-        can_disable_shutter_sound = false;
-        color_effects = null;
-        white_balances = null;
-        isos = null;
         supports_white_balance_temperature = false;
-        min_temperature = 0;
-        max_temperature = 0;
         supports_iso_range = false;
         min_iso = 0;
         max_iso = 0;
-        supports_exposure_time = false;
-        min_exposure_time = 0L;
-        max_exposure_time = 0L;
         exposures = null;
         min_exposure = 0;
         max_exposure = 0;
-        exposure_step = 0.0f;
-        supports_expo_bracketing = false;
-        max_expo_bracketing_n_images = 0;
-        supports_raw = false;
-        view_angle_x = 55.0f; // set a sensible default
-        view_angle_y = 43.0f; // set a sensible default
         sizes = null;
         current_size_index = -1;
         has_capture_rate_factor = false;
@@ -1325,7 +1110,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         current_flash_index = -1;
         supported_focus_values = null;
         current_focus_index = -1;
-        max_num_focus_areas = 0;
         applicationInterface.cameraInOperation(false, false);
         if (is_video)
             applicationInterface.cameraInOperation(false, true);
@@ -1769,12 +1553,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
     }
 
     private void setupCameraParameters() throws CameraControllerException {
-        if (MyDebug.LOG)
-            Log.d(TAG, "setupCameraParameters()");
-        long debug_time = 0;
-        if (MyDebug.LOG) {
-            debug_time = System.currentTimeMillis();
-        }
         {
             // get available scene modes
             // important, from old Camera API docs:
@@ -1791,16 +1569,12 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 
             CameraController.SupportedValues supported_values = camera_controller.setSceneMode(value);
             if (supported_values != null) {
-                scene_modes = supported_values.values;
                 // now save, so it's available for PreferenceActivity
                 applicationInterface.setSceneModePref(supported_values.selected_value);
             } else {
                 // delete key in case it's present (e.g., if feature no longer available due to change in OS, or switching APIs)
                 applicationInterface.clearSceneModePref();
             }
-        }
-        if (MyDebug.LOG) {
-            Log.d(TAG, "setupCameraParameters: time after setting scene mode: " + (System.currentTimeMillis() - debug_time));
         }
 
         {
@@ -1818,28 +1592,13 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             this.sizes = camera_features.picture_sizes;
             supported_flash_values = camera_features.supported_flash_values;
             supported_focus_values = camera_features.supported_focus_values;
-            this.max_num_focus_areas = camera_features.max_num_focus_areas;
-            this.is_exposure_lock_supported = camera_features.is_exposure_lock_supported;
             this.supports_video_stabilization = camera_features.is_video_stabilization_supported;
-            this.supports_photo_video_recording = camera_features.is_photo_video_recording_supported;
-            this.can_disable_shutter_sound = camera_features.can_disable_shutter_sound;
             this.supports_white_balance_temperature = camera_features.supports_white_balance_temperature;
-            this.min_temperature = camera_features.min_temperature;
-            this.max_temperature = camera_features.max_temperature;
             this.supports_iso_range = camera_features.supports_iso_range;
             this.min_iso = camera_features.min_iso;
             this.max_iso = camera_features.max_iso;
-            this.supports_exposure_time = camera_features.supports_exposure_time;
-            this.min_exposure_time = camera_features.min_exposure_time;
-            this.max_exposure_time = camera_features.max_exposure_time;
             this.min_exposure = camera_features.min_exposure;
             this.max_exposure = camera_features.max_exposure;
-            this.exposure_step = camera_features.exposure_step;
-            this.supports_expo_bracketing = camera_features.supports_expo_bracketing;
-            this.max_expo_bracketing_n_images = camera_features.max_expo_bracketing_n_images;
-            this.supports_raw = camera_features.supports_raw;
-            this.view_angle_x = camera_features.view_angle_x;
-            this.view_angle_y = camera_features.view_angle_y;
             this.supports_video_high_speed = camera_features.video_sizes_high_speed != null && camera_features.video_sizes_high_speed.size() > 0;
             if (supports_video_high_speed) {
                 // only use highest high speed resolution for now
@@ -1855,9 +1614,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             this.video_quality_handler.setVideoSizes(camera_features.video_sizes);
             this.supported_preview_sizes = camera_features.preview_sizes;
         }
-        if (MyDebug.LOG) {
-            Log.d(TAG, "setupCameraParameters: time after getting read only info: " + (System.currentTimeMillis() - debug_time));
-        }
+
 
         {
             if (MyDebug.LOG)
@@ -1927,9 +1684,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 camera_controller.setFaceDetectionListener(new MyFaceDetectionListener());
             }
         }
-        if (MyDebug.LOG) {
-            Log.d(TAG, "setupCameraParameters: time after setting face detection: " + (System.currentTimeMillis() - debug_time));
-        }
+
 
         {
             if (MyDebug.LOG)
@@ -1943,9 +1698,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             if (MyDebug.LOG)
                 Log.d(TAG, "supports_video_stabilization?: " + supports_video_stabilization);
         }
-        if (MyDebug.LOG) {
-            Log.d(TAG, "setupCameraParameters: time after video stabilization: " + (System.currentTimeMillis() - debug_time));
-        }
+
 
         {
             if (MyDebug.LOG)
@@ -1956,7 +1709,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 
             CameraController.SupportedValues supported_values = camera_controller.setColorEffect(value);
             if (supported_values != null) {
-                color_effects = supported_values.values;
                 // now save, so it's available for PreferenceActivity
                 applicationInterface.setColorEffectPref(supported_values.selected_value);
             } else {
@@ -1964,9 +1716,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 applicationInterface.clearColorEffectPref();
             }
         }
-        if (MyDebug.LOG) {
-            Log.d(TAG, "setupCameraParameters: time after color effect: " + (System.currentTimeMillis() - debug_time));
-        }
+
 
         {
             if (MyDebug.LOG)
@@ -1977,7 +1727,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 
             CameraController.SupportedValues supported_values = camera_controller.setWhiteBalance(value);
             if (supported_values != null) {
-                white_balances = supported_values.values;
                 // now save, so it's available for PreferenceActivity
                 applicationInterface.setWhiteBalancePref(supported_values.selected_value);
 
@@ -1992,94 +1741,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 applicationInterface.clearWhiteBalancePref();
             }
         }
-        if (MyDebug.LOG) {
-            Log.d(TAG, "setupCameraParameters: time after white balance: " + (System.currentTimeMillis() - debug_time));
-        }
-
-        // must be done before setting flash modes, as we may remove flash modes if in manual mode
-//		if( MyDebug.LOG )
-//			Log.d(TAG, "set up iso");
-//		String value = applicationInterface.getISOPref();
-//		if( MyDebug.LOG )
-//			Log.d(TAG, "saved iso: " + value);
-//		boolean is_manual_iso = false;
-//		if( supports_iso_range ) {
-//			// in this mode, we can set any ISO value from min to max
-//			this.isos = null; // if supports_iso_range==true, caller shouldn't be using getSupportedISOs()
-//
-//			// now set the desired ISO mode/value
-//			if( value.equals("auto") ) {
-//				if( MyDebug.LOG )
-//					Log.d(TAG, "setting auto iso");
-//				camera_controller.setManualISO(false, 0);
-//			}
-//			else {
-//				int iso = parseManualISOValue(value);
-//				if( iso >= 0 ) {
-//					is_manual_iso = true;
-//					if( MyDebug.LOG )
-//						Log.d(TAG, "iso: " + iso);
-//					camera_controller.setManualISO(true, iso);
-//				}
-//				else {
-//					// failed to parse
-//					camera_controller.setManualISO(false, 0);
-//					value = "auto"; // so we switch the preferences back to auto mode, rather than the invalid value
-//				}
-//
-//				// now save, so it's available for PreferenceActivity
-//				applicationInterface.setISOPref(value);
-//			}
-//		}
-//		else {
-//			// in this mode, any support for ISO is only the specific ISOs offered by the CameraController
-//			CameraController.SupportedValues supported_values = camera_controller.setISO(value);
-//			if( supported_values != null ) {
-//				isos = supported_values.values;
-//				if( !supported_values.selected_value.equals("auto") ) {
-//					if( MyDebug.LOG )
-//						Log.d(TAG, "has manual iso");
-//					is_manual_iso = true;
-//				}
-//				// now save, so it's available for PreferenceActivity
-//				applicationInterface.setISOPref(supported_values.selected_value);
-//
-//			}
-//			else {
-//				// delete key in case it's present (e.g., if feature no longer available due to change in OS, or switching APIs)
-//				applicationInterface.clearISOPref();
-//			}
-//		}
-
-//		if( is_manual_iso ) {
-//			if( supports_exposure_time ) {
-//				long exposure_time_value = applicationInterface.getExposureTimePref();
-//				if( MyDebug.LOG )
-//					Log.d(TAG, "saved exposure_time: " + exposure_time_value);
-//				if( exposure_time_value < getMinimumExposureTime() )
-//					exposure_time_value = getMinimumExposureTime();
-//				else if( exposure_time_value > getMaximumExposureTime() )
-//					exposure_time_value = getMaximumExposureTime();
-//				camera_controller.setExposureTime(exposure_time_value);
-//				// now save
-//				applicationInterface.setExposureTimePref(exposure_time_value);
-//			}
-//			else {
-//				// delete key in case it's present (e.g., if feature no longer available due to change in OS, or switching APIs)
-//				applicationInterface.clearExposureTimePref();
-//			}
-//
-//			if( this.using_android_l && supported_flash_values != null ) {
-//				// flash modes not supported when using Camera2 and manual ISO
-//				// (it's unclear flash is useful - ideally we'd at least offer torch, but ISO seems to reset to 100 when flash/torch is on!)
-//				supported_flash_values = null;
-//				if( MyDebug.LOG )
-//					Log.d(TAG, "flash not supported in Camera2 manual mode");
-//			}
-//		}
-//		if( MyDebug.LOG ) {
-//			Log.d(TAG, "setupCameraParameters: time after manual iso: " + (System.currentTimeMillis() - debug_time));
-//		}
 
         {
             if (MyDebug.LOG) {
@@ -2116,9 +1777,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 applicationInterface.clearExposureCompensationPref();
             }
         }
-        if (MyDebug.LOG) {
-            Log.d(TAG, "setupCameraParameters: time after exposures: " + (System.currentTimeMillis() - debug_time));
-        }
+
 
         {
             if (MyDebug.LOG)
@@ -2170,9 +1829,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             }
             // size set later in setPreviewSize()
         }
-        if (MyDebug.LOG) {
-            Log.d(TAG, "setupCameraParameters: time after picture sizes: " + (System.currentTimeMillis() - debug_time));
-        }
+
 
 //		{
 //			int image_quality = applicationInterface.getImageQualityPref();
@@ -2187,9 +1844,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         // get available sizes
         initialiseVideoSizes();
         initialiseVideoQuality();
-        if (MyDebug.LOG) {
-            Log.d(TAG, "setupCameraParameters: time after video sizes: " + (System.currentTimeMillis() - debug_time));
-        }
+
 
         String video_quality_value_s = applicationInterface.getVideoQualityPref();
         if (MyDebug.LOG)
@@ -2230,9 +1885,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             // now save, so it's available for PreferenceActivity
             applicationInterface.setVideoQualityPref(video_quality_handler.getCurrentVideoQuality());
         }
-        if (MyDebug.LOG) {
-            Log.d(TAG, "setupCameraParameters: time after handling video quality: " + (System.currentTimeMillis() - debug_time));
-        }
+
 
         {
             if (MyDebug.LOG) {
@@ -2268,9 +1921,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 supported_flash_values = null;
             }
         }
-        if (MyDebug.LOG) {
-            Log.d(TAG, "setupCameraParameters: time after setting up flash: " + (System.currentTimeMillis() - debug_time));
-        }
+
 
         {
             if (MyDebug.LOG)
@@ -2310,21 +1961,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             camera_controller.setFocusDistance(focus_distance_value);
             // now save
             applicationInterface.setFocusDistancePref(focus_distance_value);
-        }
-        if (MyDebug.LOG) {
-            Log.d(TAG, "setupCameraParameters: time after setting up focus: " + (System.currentTimeMillis() - debug_time));
-        }
-
-        {
-            if (MyDebug.LOG)
-                Log.d(TAG, "set up exposure lock");
-            // exposure lock should always default to false, as doesn't make sense to save it - we can't really preserve a "lock" after the camera is reopened
-            // also note that it isn't safe to lock the exposure before starting the preview
-            is_exposure_locked = false;
-        }
-
-        if (MyDebug.LOG) {
-            Log.d(TAG, "setupCameraParameters: total time for setting up camera parameters: " + (System.currentTimeMillis() - debug_time));
         }
     }
 
@@ -2575,79 +2211,9 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             }
         }
 
-		/*String pref_video_output_format = applicationInterface.getRecordVideoOutputFormatPref();
-		if( MyDebug.LOG )
-			Log.d(TAG, "pref_video_output_format: " + pref_video_output_format);
-		if( pref_video_output_format.equals("output_format_default") ) {
-			// n.b., although there is MediaRecorder.OutputFormat.DEFAULT, we don't explicitly set that - rather stick with what is default in the CamcorderProfile
-		}
-		else if( pref_video_output_format.equals("output_format_aac_adts") ) {
-			profile.fileFormat = MediaRecorder.OutputFormat.AAC_ADTS;
-		}
-		else if( pref_video_output_format.equals("output_format_amr_nb") ) {
-			profile.fileFormat = MediaRecorder.OutputFormat.AMR_NB;
-		}
-		else if( pref_video_output_format.equals("output_format_amr_wb") ) {
-			profile.fileFormat = MediaRecorder.OutputFormat.AMR_WB;
-		}
-		else if( pref_video_output_format.equals("output_format_mpeg4") ) {
-			profile.fileFormat = MediaRecorder.OutputFormat.MPEG_4;
-			//video_recorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264 );
-			//video_recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC );
-		}
-		else if( pref_video_output_format.equals("output_format_3gpp") ) {
-			profile.fileFormat = MediaRecorder.OutputFormat.THREE_GPP;
-		}
-		else if( pref_video_output_format.equals("output_format_webm") ) {
-			profile.fileFormat = MediaRecorder.OutputFormat.WEBM;
-			profile.videoCodec = MediaRecorder.VideoEncoder.VP8;
-			profile.audioCodec = MediaRecorder.AudioEncoder.VORBIS;
-		}*/
-
         return new VideoProfile(profile);
     }
 
-    public String getCamcorderProfileDescriptionShort(String quality) {
-        if (camera_controller == null)
-            return "";
-        CamcorderProfile profile = getCamcorderProfile(quality);
-        // don't display MP here, as call to Preview.getMPString() here would contribute to poor performance (in PopupView)!
-        // this is meant to be a quick simple string
-        return profile.videoFrameWidth + "x" + profile.videoFrameHeight;
-    }
-
-    public String getCamcorderProfileDescription(String quality) {
-        if (camera_controller == null)
-            return "";
-        CamcorderProfile profile = getCamcorderProfile(quality);
-        String highest = "";
-        if (profile.quality == CamcorderProfile.QUALITY_HIGH) {
-            highest = "Highest: ";
-        }
-        String type = "";
-        if (profile.videoFrameWidth == 3840 && profile.videoFrameHeight == 2160) {
-            type = "4K Ultra HD ";
-        } else if (profile.videoFrameWidth == 1920 && profile.videoFrameHeight == 1080) {
-            type = "Full HD ";
-        } else if (profile.videoFrameWidth == 1280 && profile.videoFrameHeight == 720) {
-            type = "HD ";
-        } else if (profile.videoFrameWidth == 720 && profile.videoFrameHeight == 480) {
-            type = "SD ";
-        } else if (profile.videoFrameWidth == 640 && profile.videoFrameHeight == 480) {
-            type = "VGA ";
-        } else if (profile.videoFrameWidth == 352 && profile.videoFrameHeight == 288) {
-            type = "CIF ";
-        } else if (profile.videoFrameWidth == 320 && profile.videoFrameHeight == 240) {
-            type = "QVGA ";
-        } else if (profile.videoFrameWidth == 176 && profile.videoFrameHeight == 144) {
-            type = "QCIF ";
-        }
-        return highest + type + profile.videoFrameWidth + "x" + profile.videoFrameHeight + " " + getAspectRatioMPString(profile.videoFrameWidth, profile.videoFrameHeight);
-    }
-
-    public double getTargetRatio() {
-        return preview_targetRatio;
-    }
 
     private double calculateTargetRatioForPreview(Point display_size) {
         double targetRatio;
@@ -3027,7 +2593,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 // don't cancelAutoFocus() here, otherwise we get sluggish zoom behaviour on Camera2 API
                 camera_controller.setZoom(new_zoom_factor);
                 applicationInterface.setZoomPref(new_zoom_factor);
-                clearFocusAreas();
             }
         }
     }
@@ -3497,17 +3062,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         return this.supported_flash_values.get(current_flash_index);
     }
 
-    public void updateFocus(String focus_value, boolean quiet, boolean auto_focus) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "updateFocus(): " + focus_value);
-        if (this.phase == PHASE_TAKING_PHOTO) {
-            // just to be safe - otherwise problem that changing the focus mode will cancel the autofocus before taking a photo, so we never take a photo, but is_taking_photo remains true!
-            if (MyDebug.LOG)
-                Log.d(TAG, "currently taking a photo");
-            return;
-        }
-        updateFocus(focus_value, quiet, true, auto_focus);
-    }
 
     private boolean supportedFocusValue(String focus_value) {
         if (MyDebug.LOG)
@@ -3608,30 +3162,8 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         removePendingContinuousFocusReset(); // this isn't strictly needed as the reset_continuous_focus_runnable will check the ui focus mode when it runs, but good to remove it anyway
         autofocus_in_continuous_mode = false;
         camera_controller.setFocusValue(focus_value);
-        clearFocusAreas();
         if (auto_focus && !focus_value.equals("focus_mode_locked")) {
             tryAutoFocus(false, false);
-        }
-    }
-
-    public void toggleExposureLock() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "toggleExposureLock()");
-        if (this.phase == PHASE_TAKING_PHOTO) {
-            // just to be safe
-            if (MyDebug.LOG)
-                Log.d(TAG, "currently taking a photo");
-            return;
-        }
-        if (camera_controller == null) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "camera not opened!");
-            return;
-        }
-        if (is_exposure_lock_supported) {
-            is_exposure_locked = !is_exposure_locked;
-            cancelAutoFocus();
-            camera_controller.setAutoExposureLock(is_exposure_locked);
         }
     }
 
@@ -3687,6 +3219,8 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 
         // make sure that preview running (also needed to hide trash/share icons)
         this.startCameraPreview();
+
+        updateFocusForVideo();
 
         startVideoRecording(true);
     }
@@ -3817,10 +3351,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         else {
             if (phase == PHASE_TIMER)
                 this.phase = PHASE_NORMAL; // in case we were previously on timer for starting the video
-        }
-        synchronized (this) {
-            // synchronise for consistency (keep FindBugs happy)
-            take_photo_after_autofocus = false;
         }
         if (camera_controller == null) {
             if (MyDebug.LOG)
@@ -4344,10 +3874,8 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 if (MyDebug.LOG)
                     Log.d(TAG, "set focus_success to " + focus_success);
                 this.focus_complete_time = -1;
-                this.successfully_focused = false;
                 camera_controller.autoFocus(autoFocusCallback, false);
                 count_cameraAutoFocus++;
-                this.focus_started_time = System.currentTimeMillis();
                 if (MyDebug.LOG)
                     Log.d(TAG, "autofocus started, count now: " + count_cameraAutoFocus);
             } else if (has_focus_area) {
@@ -4430,10 +3958,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             focus_success = success ? FOCUS_SUCCESS : FOCUS_FAILED;
             focus_complete_time = System.currentTimeMillis();
         }
-        if (manual && !cancelled && success) {
-            successfully_focused = true;
-            successfully_focused_time = focus_complete_time;
-        }
+
         if (manual && camera_controller != null && autofocus_in_continuous_mode) {
             String current_ui_focus_value = getCurrentFocusValue();
             if (MyDebug.LOG)
