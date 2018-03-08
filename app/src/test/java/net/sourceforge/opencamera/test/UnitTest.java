@@ -7,7 +7,6 @@ import net.sourceforge.opencamera.CameraController.CameraController2;
 import net.sourceforge.opencamera.Preview.Preview;
 import net.sourceforge.opencamera.Preview.VideoQualityHandler;
 import net.sourceforge.opencamera.TextFormatter;
-import net.sourceforge.opencamera.UI.DrawPreview;
 
 import org.junit.Test;
 

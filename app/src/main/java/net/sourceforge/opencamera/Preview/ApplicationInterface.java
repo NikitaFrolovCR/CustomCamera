@@ -45,10 +45,7 @@ public interface ApplicationInterface {
 	String getColorEffectPref(); // "node" for default (strings correspond to Android's color effect constants in android.hardware.Camera.Parameters)
 	String getWhiteBalancePref(); // "auto" for default (strings correspond to Android's white balance constants in android.hardware.Camera.Parameters)
 	int getWhiteBalanceTemperaturePref();
-//	String getISOPref(); // "auto" for auto-ISO, otherwise a numerical value; see documentation for Preview.supportsISORange().
-	int getExposureCompensationPref(); // 0 for default
 	Pair<Integer, Integer> getCameraResolutionPref(); // return null to let Preview choose size
-//	int getImageQualityPref(); // jpeg quality for taking photos; "90" is a recommended default
 	boolean getFaceDetectionPref(); // whether to use face detection mode
 	String getVideoQualityPref(); // should be one of Preview.getSupportedVideoQuality() (use Preview.getCamcorderProfile() or Preview.getCamcorderProfileDescription() for details); or return "" to let Preview choose quality
 	boolean getVideoStabilizationPref(); // whether to use video stabilization for video
@@ -65,27 +62,16 @@ public interface ApplicationInterface {
 	String getLockOrientationPref(); // return "none" for default; use "portrait" or "landscape" to lock photos/videos to that orientation
     boolean getTouchCapturePref(); // whether to enable touch to capture
     boolean getDoubleTapCapturePref(); // whether to enable double-tap to capture
-	boolean getPausePreviewPref(); // whether to pause the preview after taking a photo
 	boolean getShowToastsPref();
 	boolean getShutterSoundPref(); // whether to play sound when taking photo
 	boolean getStartupFocusPref(); // whether to do autofocus on startup
-	long getTimerPref(); // time in ms for timer (so 0 for off)
-	String getRepeatPref(); // return number of times to repeat photo in a row (as a string), so "1" for default; return "unlimited" for unlimited
-	long getRepeatIntervalPref(); // time in ms between repeat
-//	boolean getRequireLocationPref(); // if getGeotaggingPref() returns true, and this method returns true, then phot/video will only be taken if location data is available
 	boolean getRecordAudioPref(); // whether to record audio when recording video
 	String getRecordAudioChannelsPref(); // either "audio_default", "audio_mono" or "audio_stereo"
 	String getRecordAudioSourcePref(); // "audio_src_camcorder" is recommended, but other options are: "audio_src_mic", "audio_src_default", "audio_src_voice_communication"; see corresponding values in android.media.MediaRecorder.AudioSource
-	int getZoomPref(); // index into Preview.getSupportedZoomRatios() array (each entry is the zoom factor, scaled by 100; array is sorted from min to max zoom)
 	double getCalibratedLevelAngle(); // set to non-zero to calibrate the accelerometer used for the level angles
 	// Camera2 only modes:
-	long getExposureTimePref(); // only called if getISOPref() is not "default"
 	float getFocusDistancePref();
 	boolean useCamera2FakeFlash(); // whether to enable CameraController.setUseCamera2FakeFlash() for Camera2 API
-	boolean useCamera2FastBurst(); // whether to enable Camera2's captureBurst() for faster taking of expo-bracketing photos (generally should be true, but some devices have problems with captureBurst())
-
-	// for testing purposes:
-	boolean isTestAlwaysFocus(); // if true, pretend autofocus always successful
 
 	// methods that transmit information/events (up to the Application whether to do anything or not)
     void cameraSetup(); // called when the camera is (re-)set up - should update UI elements/parameters that depend on camera settings
@@ -106,7 +92,7 @@ public interface ApplicationInterface {
 	void cameraClosed();
 
 	// methods that request actions
-	void layoutUI(); // application should layout UI that's on top of the preview
+//	void layoutUI(); // application should layout UI that's on top of the preview
 //	void multitouchZoom(int new_zoom); // indicates that the zoom has changed due to multitouch gesture on preview
 	// the set/clear*Pref() methods are called if Preview decides to override the requested pref (because Camera device doesn't support requested pref) (clear*Pref() is called if the feature isn't supported at all)
 	// the application can use this information to update its preferences

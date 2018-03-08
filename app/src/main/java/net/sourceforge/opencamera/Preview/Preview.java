@@ -811,8 +811,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             return;
         }
 
-        // need to force a layoutUI update (e.g., so UI is oriented correctly when app goes idle, device is then rotated, and app is then resumed)
-        applicationInterface.layoutUI();
     }
 
     @Override
@@ -1055,7 +1053,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                         toast = remaining_restart_video + " " + getContext().getResources().getString(R.string.repeats_to_go);
 //					takePicture(due_to_max_filesize, false); //TODO
                     if (!due_to_max_filesize) {
-                        showToast(null, toast); // show the toast afterwards, as we're hogging the UI thread here, and media recorder takes time to start up
                         // must decrement after calling takePicture(), so that takePicture() doesn't reset the value of remaining_restart_video
                         remaining_restart_video--;
                     }
@@ -1749,15 +1746,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             Log.d(TAG, "setupCamera: time after starting camera preview: " + (System.currentTimeMillis() - debug_time));
         }
 
-        // must be done after setting parameters, as this function may set parameters
-        // also needs to be done after starting preview for some devices (e.g., Nexus 7)
-        if (this.has_zoom && applicationInterface.getZoomPref() != 0) {
-            zoomTo(applicationInterface.getZoomPref());
-            if (MyDebug.LOG) {
-                Log.d(TAG, "setupCamera: total time after zoomTo: " + (System.currentTimeMillis() - debug_time));
-            }
-        }
-
         applicationInterface.cameraSetup(); // must call this after the above take_photo code for calling switchVideo
         if (MyDebug.LOG) {
             Log.d(TAG, "setupCamera: total time after cameraSetup: " + (System.currentTimeMillis() - debug_time));
@@ -1889,7 +1877,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 class MyFaceDetectionListener implements CameraController.FaceDetectionListener {
                     final Handler handler = new Handler();
                     int last_n_faces = -1;
-                    FaceLocation last_face_location = FaceLocation.FACELOCATION_UNSET;
 
                     /** Note, at least for Camera2 API, onFaceDetection() isn't called on UI thread.
                      */
@@ -1925,7 +1912,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                                     face_rect.round(face.rect);
                                 }
 
-                                reportFaces(faces);
 
                                 if (faces_detected == null || faces_detected.length != faces.length) {
                                     // avoid unnecessary reallocations
@@ -1936,122 +1922,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                                 System.arraycopy(faces, 0, faces_detected, 0, faces.length);
                             }
                         });
-                    }
-
-                    /** Accessibility: report number of faces for talkback etc.
-                     */
-                    private void reportFaces(CameraController.Face[] local_faces) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN && accessibility_manager.isEnabled() && accessibility_manager.isTouchExplorationEnabled()) {
-                            int n_faces = local_faces.length;
-                            FaceLocation face_location = FaceLocation.FACELOCATION_UNKNOWN;
-                            if (n_faces > 0) {
-                                // set face_location
-                                float avg_x = 0, avg_y = 0;
-                                final float bdry_frac_c = 0.35f;
-                                boolean all_centre = true;
-                                for (CameraController.Face face : local_faces) {
-                                    float face_x = face.rect.centerX();
-                                    float face_y = face.rect.centerY();
-                                    face_x /= (float) cameraSurface.getView().getWidth();
-                                    face_y /= (float) cameraSurface.getView().getHeight();
-                                    if (all_centre) {
-                                        if (face_x < bdry_frac_c || face_x > 1.0f - bdry_frac_c || face_y < bdry_frac_c || face_y > 1.0f - bdry_frac_c)
-                                            all_centre = false;
-                                    }
-                                    avg_x += face_x;
-                                    avg_y += face_y;
-                                }
-                                avg_x /= n_faces;
-                                avg_y /= n_faces;
-                                if (MyDebug.LOG) {
-                                    Log.d(TAG, "    avg_x: " + avg_x);
-                                    Log.d(TAG, "    avg_y: " + avg_y);
-                                    Log.d(TAG, "    ui_rotation: " + ui_rotation);
-                                }
-                                if (all_centre) {
-                                    face_location = FaceLocation.FACELOCATION_CENTRE;
-                                } else {
-                                    switch (ui_rotation) {
-                                        case 0:
-                                            break;
-                                        case 90: {
-                                            float temp = avg_x;
-                                            avg_x = avg_y;
-                                            avg_y = 1.0f - temp;
-                                            break;
-                                        }
-                                        case 180:
-                                            avg_x = 1.0f - avg_x;
-                                            avg_y = 1.0f - avg_y;
-                                            break;
-                                        case 270: {
-                                            float temp = avg_x;
-                                            avg_x = 1.0f - avg_y;
-                                            avg_y = temp;
-                                            break;
-                                        }
-                                    }
-                                    if (MyDebug.LOG) {
-                                        Log.d(TAG, "    avg_x: " + avg_x);
-                                        Log.d(TAG, "    avg_y: " + avg_y);
-                                    }
-                                    if (avg_x < bdry_frac_c)
-                                        face_location = FaceLocation.FACELOCATION_LEFT;
-                                    else if (avg_x > 1.0f - bdry_frac_c)
-                                        face_location = FaceLocation.FACELOCATION_RIGHT;
-                                    else if (avg_y < bdry_frac_c)
-                                        face_location = FaceLocation.FACELOCATION_TOP;
-                                    else if (avg_y > 1.0f - bdry_frac_c)
-                                        face_location = FaceLocation.FACELOCATION_BOTTOM;
-                                }
-                            }
-
-                            if (n_faces != last_n_faces || face_location != last_face_location) {
-                                if (n_faces == 0 && last_n_faces == -1) {
-                                    // only say 0 faces detected if previously the number was non-zero
-                                } else {
-                                    String string = n_faces + " " + getContext().getResources().getString(n_faces == 1 ? R.string.face_detected : R.string.faces_detected);
-                                    if (n_faces > 0 && face_location != FaceLocation.FACELOCATION_UNKNOWN) {
-                                        switch (face_location) {
-                                            case FACELOCATION_CENTRE:
-                                                string += " " + getContext().getResources().getString(R.string.centre_of_screen);
-                                                break;
-                                            case FACELOCATION_LEFT:
-                                                string += " " + getContext().getResources().getString(R.string.left_of_screen);
-                                                break;
-                                            case FACELOCATION_RIGHT:
-                                                string += " " + getContext().getResources().getString(R.string.right_of_screen);
-                                                break;
-                                            case FACELOCATION_TOP:
-                                                string += " " + getContext().getResources().getString(R.string.top_of_screen);
-                                                break;
-                                            case FACELOCATION_BOTTOM:
-                                                string += " " + getContext().getResources().getString(R.string.bottom_of_screen);
-                                                break;
-                                        }
-                                    }
-                                    final String string_f = string;
-                                    if (MyDebug.LOG)
-                                        Log.d(TAG, string);
-                                    // to avoid having a big queue of saying "one face detected, two faces detected" etc, we only report
-                                    // after a delay, cancelling any that were previously queued
-                                    handler.removeCallbacksAndMessages(null);
-                                    handler.postDelayed(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            if (MyDebug.LOG)
-                                                Log.d(TAG, "announceForAccessibility: " + string_f);
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-                                                Preview.this.getView().announceForAccessibility(string_f);
-                                            }
-                                        }
-                                    }, 500);
-                                }
-
-                                last_n_faces = n_faces;
-                                last_face_location = face_location;
-                            }
-                        }
                     }
                 }
                 camera_controller.setFaceDetectionListener(new MyFaceDetectionListener());
@@ -3181,7 +3051,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                     } else {
                         focus_distance_s = getResources().getString(R.string.infinite);
                     }
-                    showToast(seekbar_toast, getResources().getString(R.string.focus_distance) + " " + focus_distance_s);
                 }
             }
         }
@@ -3199,7 +3068,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             if (camera_controller.setExposureCompensation(new_exposure)) {
                 // now save
                 applicationInterface.setExposureCompensationPref(new_exposure);
-                showToast(seekbar_toast, getExposureCompensationString(new_exposure), 96);
             }
         }
     }
@@ -3215,7 +3083,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             if (camera_controller.setWhiteBalanceTemperature(new_temperature)) {
                 // now save
                 applicationInterface.setWhiteBalanceTemperaturePref(new_temperature);
-                showToast(seekbar_toast, getResources().getString(R.string.white_balance) + " " + new_temperature, 96);
             }
         }
     }
@@ -3252,34 +3119,8 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             if (camera_controller.setISO(new_iso)) {
                 // now save
 //				applicationInterface.setISOPref("" + new_iso);
-                showToast(seekbar_toast, getISOString(new_iso), 96);
             }
         }
-    }
-
-    public void setExposureTime(long new_exposure_time) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "setExposureTime(): " + new_exposure_time);
-        if (camera_controller != null && supports_exposure_time) {
-            if (new_exposure_time < getMinimumExposureTime())
-                new_exposure_time = getMinimumExposureTime();
-            else if (new_exposure_time > getMaximumExposureTime())
-                new_exposure_time = getMaximumExposureTime();
-            if (camera_controller.setExposureTime(new_exposure_time)) {
-                // now save
-                applicationInterface.setExposureTimePref(new_exposure_time);
-                showToast(seekbar_toast, getExposureTimeString(new_exposure_time), 96);
-            }
-        }
-    }
-
-    public String getExposureCompensationString(int exposure) {
-        float exposure_ev = exposure * exposure_step;
-        return getResources().getString(R.string.exposure_compensation) + " " + (exposure > 0 ? "+" : "") + decimal_format_2dp.format(exposure_ev) + " EV";
-    }
-
-    public String getISOString(int iso) {
-        return getResources().getString(R.string.iso) + " " + iso;
     }
 
     public String getExposureTimeString(long exposure_time) {
@@ -3339,28 +3180,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             });
         }
     }
-
-	/*public String getFrameDurationString(long frame_duration) {
-		double frame_duration_s = frame_duration/1000000000.0;
-		double frame_duration_r = 1.0/frame_duration_s;
-		return getResources().getString(R.string.fps) + " " + decimal_format_1dp.format(frame_duration_r);
-	}*/
-
-	/*private String getFocusOneDistanceString(float dist) {
-		if( dist == 0.0f )
-			return "inf.";
-		float real_dist = 1.0f/dist;
-		return decimal_format_2dp.format(real_dist) + getResources().getString(R.string.metres_abbreviation);
-	}
-
-	public String getFocusDistanceString(float dist_min, float dist_max) {
-		String f_s = "f ";
-		//if( dist_min == dist_max )
-		//	return f_s + getFocusOneDistanceString(dist_min);
-		//return f_s + getFocusOneDistanceString(dist_min) + "-" + getFocusOneDistanceString(dist_max);
-		// just always show max for now
-		return f_s + getFocusOneDistanceString(dist_max);
-	}*/
 
     /* It's important to set a preview FPS using chooseBestPreviewFps() rather than just leaving it to the default, as some devices
 	 * have a poor choice of default - e.g., Nexus 5 and Nexus 6 on original Camera API default to (15000, 15000), which means very dark
@@ -3646,9 +3465,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 if (flash_value.equals(flash_values[i])) {
                     if (MyDebug.LOG)
                         Log.d(TAG, "    found entry: " + i);
-                    if (!initial) {
-                        showToast(flash_toast, flash_entries[i]);
-                    }
+
                     break;
                 }
             }
@@ -3759,12 +3576,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             String focus_value = supported_focus_values.get(current_focus_index);
             if (MyDebug.LOG)
                 Log.d(TAG, "    focus_value: " + focus_value);
-            if (!quiet) {
-                String focus_entry = findFocusEntryForValue(focus_value);
-                if (focus_entry != null) {
-                    showToast(focus_toast, focus_entry);
-                }
-            }
             this.setFocusValue(focus_value, auto_focus);
         }
     }
@@ -3848,7 +3659,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         }
         if (this.isOnTimer()) {
             cancelTimer();
-            showToast(take_photo_toast, R.string.cancelled_timer);
             return;
         }
         //if( !photo_snapshot && this.phase == PHASE_TAKING_PHOTO ) {
@@ -3871,7 +3681,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 Log.d(TAG, "already taking a photo");
             if (remaining_burst_photos != 0) {
                 cancelBurst();
-                showToast(take_photo_toast, R.string.cancelled_burst_mode);
             }
             return;
         }
@@ -4143,7 +3952,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 // we restrict check to Android 6 or later just in case, see note in LocationSupplier.setupLocationListener()
                 if (MyDebug.LOG)
                     Log.e(TAG, "don't have RECORD_AUDIO permission");
-                showToast(null, R.string.permission_record_audio_not_available);
                 record_audio = false;
             }
             if (record_audio) {
@@ -4270,8 +4078,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 applicationInterface.cameraInOperation(true, true);
                 told_app_starting = true;
                 applicationInterface.startingVideo();
-        		/*if( true ) // test
-        			throw new IOException();*/
                 cameraSurface.setVideoRecorder(local_video_recorder);
                 local_video_recorder.setOrientationHint(getImageVideoRotation());
                 if (MyDebug.LOG)
@@ -4294,45 +4100,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                     applicationInterface.stoppingVideo();
                     failedToStartVideoRecorder(profile);
                 }
-
-				/*final MediaRecorder local_video_recorder_f = local_video_recorder;
-				new AsyncTask<Void, Void, Boolean>() {
-					private static final String TAG = "video_recorder.start";
-
-					@Override
-					protected Boolean doInBackground(Void... voids) {
-						if( MyDebug.LOG )
-							Log.d(TAG, "doInBackground, async task: " + this);
-						try {
-							local_video_recorder_f.start();
-						}
-						catch(RuntimeException e) {
-							// needed for emulator at least - although MediaRecorder not meant to work with emulator, it's good to fail gracefully
-							Log.e(TAG, "runtime exception starting video recorder");
-							e.printStackTrace();
-							return false;
-						}
-						return true;
-					}
-
-					@Override
-					protected void onPostExecute(Boolean success) {
-						if( MyDebug.LOG ) {
-							Log.d(TAG, "onPostExecute, async task: " + this);
-							Log.d(TAG, "success: " + success);
-						}
-						 // still assign even if success==false, so failedToStartVideoRecorder() will release the video_recorder
-						Preview.this.video_recorder = local_video_recorder_f;
-						if( success ) {
-							videoRecordingStarted(max_filesize_restart);
-						}
-						else {
-							// told_app_starting must be true if we're here
-							applicationInterface.stoppingVideo();
-							failedToStartVideoRecorder(profile);
-						}
-					}
-				}.execute();*/
             } catch (IOException e) {
                 if (MyDebug.LOG)
                     Log.e(TAG, "failed to save video");
@@ -4371,7 +4138,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 video_recorder_is_paused = false;
                 applicationInterface.cameraInOperation(false, true);
                 this.reconnectCamera(true);
-                this.showToast(null, R.string.video_no_free_space);
             }
         }
     }
@@ -4456,8 +4222,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                                 // but still need to check that the camera hasn't closed or the task halted, since TimerTask.run() started
                                 if (camera_controller != null && batteryCheckVideoTimerTask != null) {
                                     stopVideo(false);
-                                    String toast = getContext().getResources().getString(R.string.video_power_critical);
-                                    showToast(null, toast); // show the toast afterwards, as we're hogging the UI thread here, and media recorder takes time to stop
                                 } else {
                                     if (MyDebug.LOG)
                                         Log.d(TAG, "batteryCheckVideoTimerTask: don't stop video, as already cancelled");
@@ -4500,7 +4264,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 video_recorder.resume();
                 video_recorder_is_paused = false;
                 video_start_time = System.currentTimeMillis();
-                this.showToast(pause_video_toast, R.string.video_resume);
             } else {
                 if (MyDebug.LOG)
                     Log.d(TAG, "pausing...");
@@ -4512,268 +4275,10 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                     Log.d(TAG, "last_time: " + last_time);
                     Log.d(TAG, "video_accumulated_time is now: " + video_accumulated_time);
                 }
-                this.showToast(pause_video_toast, R.string.video_pause);
             }
         } else {
             Log.e(TAG, "pauseVideo called but not video recording");
         }
-    }
-
-    /**
-     * Should be called when taking a photo immediately after an autofocus.
-     * This is needed for a workaround for Camera2 bug (at least on Nexus 6) where photos sometimes come out dark when using flash
-     * auto, when the flash fires. This happens when taking a photo in autofocus mode (including when continuous mode has
-     * transitioned to autofocus mode due to touching to focus). Seems to happen with scenes that have bright and dark regions,
-     * i.e., on verge of flash firing.
-     * Seems to be fixed if we have a short delay...
-     */
-    private void prepareAutoFocusPhoto() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "prepareAutoFocusPhoto");
-        if (using_android_l) {
-            String flash_value = camera_controller.getFlashValue();
-            // getFlashValue() may return "" if flash not supported!
-            if (flash_value.length() > 0 && (flash_value.equals("flash_auto") || flash_value.equals("flash_red_eye"))) {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "wait for a bit...");
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-
-    /**
-     * Take photo, assumes any autofocus has already been taken care of, and that applicationInterface.cameraInOperation(true, false) has
-     * already been called.
-     * Note that even if a caller wants to take a photo without focusing, you probably want to call takePhoto() with skip_autofocus
-     * set to true (so that things work okay in continuous picture focus mode).
-     */
-//	private void takePhotoWhenFocused() {
-//		// should be called when auto-focused
-//		if( MyDebug.LOG )
-//			Log.d(TAG, "takePhotoWhenFocused");
-//		if( camera_controller == null ) {
-//			if( MyDebug.LOG )
-//				Log.d(TAG, "camera not opened!");
-//			this.phase = PHASE_NORMAL;
-//			applicationInterface.cameraInOperation(false, false);
-//			return;
-//		}
-//		if( !this.has_surface ) {
-//			if( MyDebug.LOG )
-//				Log.d(TAG, "preview surface not yet available");
-//			this.phase = PHASE_NORMAL;
-//			applicationInterface.cameraInOperation(false, false);
-//			return;
-//		}
-//
-//		final String focus_value = current_focus_index != -1 ? supported_focus_values.get(current_focus_index) : null;
-//		if( MyDebug.LOG ) {
-//			Log.d(TAG, "focus_value is " + focus_value);
-//			Log.d(TAG, "focus_success is " + focus_success);
-//		}
-//
-//		if( focus_value != null && focus_value.equals("focus_mode_locked") && focus_success == FOCUS_WAITING ) {
-//			// make sure there isn't an autofocus in progress - can happen if in locked mode we take a photo while autofocusing - see testTakePhotoLockedFocus() (although that test doesn't always properly test the bug...)
-//			// we only cancel when in locked mode and if still focusing, as I had 2 bug reports for v1.16 that the photo was being taken out of focus; both reports said it worked fine in 1.15, and one confirmed that it was due to the cancelAutoFocus() line, and that it's now fixed with this fix
-//			// they said this happened in every focus mode, including locked - so possible that on some devices, cancelAutoFocus() actually pulls the camera out of focus, or reverts to preview focus?
-//			cancelAutoFocus();
-//		}
-//		removePendingContinuousFocusReset(); // to avoid switching back to continuous focus mode while taking a photo - instead we'll always make sure we switch back after taking a photo
-//		updateParametersFromLocation(); // do this now, not before, so we don't set location parameters during focus (sometimes get RuntimeException)
-//
-//		focus_success = FOCUS_DONE; // clear focus rectangle if not already done
-//		successfully_focused = false; // so next photo taken will require an autofocus
-//		if( MyDebug.LOG )
-//			Log.d(TAG, "remaining_burst_photos: " + remaining_burst_photos);
-//
-//		CameraController.PictureCallback pictureCallback = new CameraController.PictureCallback() {
-//			private boolean success = false; // whether jpeg callback succeeded
-//			private boolean has_date = false;
-//			private Date current_date = null;
-//
-//			public void onStarted() {
-//				if( MyDebug.LOG )
-//					Log.d(TAG, "onStarted");
-//				applicationInterface.onCaptureStarted();
-//			}
-//
-//			public void onCompleted() {
-//				if( MyDebug.LOG )
-//					Log.d(TAG, "onCompleted");
-//				applicationInterface.onPictureCompleted();
-//    	        if( !using_android_l ) {
-//    	        	is_preview_started = false; // preview automatically stopped due to taking photo on original Camera API
-//    	        }
-//    	        phase = PHASE_NORMAL; // need to set this even if remaining burst photos, so we can restart the preview
-//    	        if( remaining_burst_photos == -1 || remaining_burst_photos > 0 ) {
-//    	        	if( !is_preview_started ) {
-//    	    	    	// we need to restart the preview; and we do this in the callback, as we need to restart after saving the image
-//    	    	    	// (otherwise this can fail, at least on Nexus 7)
-//						if( MyDebug.LOG )
-//							Log.d(TAG, "burst mode photos remaining: onPictureTaken about to start preview: " + remaining_burst_photos);
-//    		            startCameraPreview();
-//    	        		if( MyDebug.LOG )
-//    	        			Log.d(TAG, "burst mode photos remaining: onPictureTaken started preview: " + remaining_burst_photos);
-//    	        	}
-//    	        }
-//    	        else {
-//    		        phase = PHASE_NORMAL;
-//    				boolean pause_preview = applicationInterface.getPausePreviewPref();
-//    	    		if( MyDebug.LOG )
-//    	    			Log.d(TAG, "pause_preview? " + pause_preview);
-//    				if( pause_preview && success ) {
-//    					if( is_preview_started ) {
-//    						// need to manually stop preview on Android L Camera2
-//							if( camera_controller != null ) {
-//								camera_controller.stopPreview();
-//							}
-//    						is_preview_started = false;
-//    					}
-//    	    			setPreviewPaused(true);
-//    				}
-//    				else {
-//    	            	if( !is_preview_started ) {
-//    		    	    	// we need to restart the preview; and we do this in the callback, as we need to restart after saving the image
-//    		    	    	// (otherwise this can fail, at least on Nexus 7)
-//    			            startCameraPreview();
-//    	            	}
-//    	        		applicationInterface.cameraInOperation(false, false);
-//    	        		if( MyDebug.LOG )
-//    	        			Log.d(TAG, "onPictureTaken started preview");
-//    				}
-//    	        }
-//				continuousFocusReset(); // in case we took a photo after user had touched to focus (causing us to switch from continuous to autofocus mode)
-//    			if( camera_controller != null && focus_value != null && ( focus_value.equals("focus_mode_continuous_picture") || focus_value.equals("focus_mode_continuous_video") ) ) {
-//	        		if( MyDebug.LOG )
-//	        			Log.d(TAG, "cancelAutoFocus to restart continuous focusing");
-//    				camera_controller.cancelAutoFocus(); // needed to restart continuous focusing
-//    			}
-//
-//    			if( MyDebug.LOG )
-//    				Log.d(TAG, "do we need to take another photo? remaining_burst_photos: " + remaining_burst_photos);
-//    	        if( remaining_burst_photos == -1 || remaining_burst_photos > 0 ) {
-//					if( camera_controller == null ) {
-//	    				Log.e(TAG, "remaining_burst_photos still set, but camera is closed!: " + remaining_burst_photos);
-//						cancelBurst();
-//					}
-//					else {
-//						if( remaining_burst_photos > 0 )
-//							remaining_burst_photos--;
-//
-//						long timer_delay = applicationInterface.getRepeatIntervalPref();
-//						if( timer_delay == 0 ) {
-//							// we set skip_autofocus to go straight to taking a photo rather than refocusing, for speed
-//							// need to manually set the phase
-//							phase = PHASE_TAKING_PHOTO;
-//							takePhoto(true);
-//						}
-//						else {
-//							takePictureOnTimer(timer_delay, true);
-//						}
-//					}
-//    	        }
-//			}
-//
-//			/** Ensures we get the same date for both JPEG and RAW; and that we set the date ASAP so that it corresponds to actual
-//			 *  photo time.
-//			 */
-//			private void initDate() {
-//				if( !has_date ) {
-//					has_date = true;
-//					current_date = new Date();
-//					if( MyDebug.LOG )
-//						Log.d(TAG, "picture taken on date: " + current_date);
-//				}
-//			}
-//
-//			public void onPictureTaken(byte[] data) {
-//				if( MyDebug.LOG )
-//					Log.d(TAG, "onPictureTaken");
-//    	    	// n.b., this is automatically run in a different thread
-//				initDate();
-//				if( !applicationInterface.onPictureTaken(data, current_date) ) {
-//					if( MyDebug.LOG )
-//						Log.e(TAG, "applicationInterface.onPictureTaken failed");
-//					success = false;
-//				}
-//				else {
-//					success = true;
-//				}
-//    	    }
-//
-////			public void onRawPictureTaken(DngCreator dngCreator, Image image) {
-////				if( MyDebug.LOG )
-////					Log.d(TAG, "onRawPictureTaken");
-////				initDate();
-////				if( !applicationInterface.onRawPictureTaken(dngCreator, image, current_date) ) {
-////					if( MyDebug.LOG )
-////						Log.e(TAG, "applicationInterface.onRawPictureTaken failed");
-////				}
-////			}
-////
-////			public void onBurstPictureTaken(List<byte[]> images) {
-////				if( MyDebug.LOG )
-////					Log.d(TAG, "onBurstPictureTaken");
-////    	    	// n.b., this is automatically run in a different thread
-////				initDate();
-////
-////				success = true;
-////				if( !applicationInterface.onBurstPictureTaken(images, current_date) ) {
-////					if( MyDebug.LOG )
-////						Log.e(TAG, "applicationInterface.onBurstPictureTaken failed");
-////					success = false;
-////				}
-////    	    }
-//
-//			public void onFrontScreenTurnOn() {
-//				if( MyDebug.LOG )
-//					Log.d(TAG, "onFrontScreenTurnOn");
-//				applicationInterface.turnFrontScreenFlashOn();
-//			}
-//    	};
-//		CameraController.ErrorCallback errorCallback = new CameraController.ErrorCallback() {
-//			public void onError() {
-//    			if( MyDebug.LOG )
-//					Log.e(TAG, "error from takePicture");
-//        		count_cameraTakePicture--; // cancel out the increment from after the takePicture() call
-//	            applicationInterface.onPhotoError();
-//				phase = PHASE_NORMAL;
-//	            startCameraPreview();
-//	    		applicationInterface.cameraInOperation(false, false);
-//    	    }
-//		};
-//    	{
-//    		camera_controller.setRotation(getImageVideoRotation());
-//
-//			boolean enable_sound = applicationInterface.getShutterSoundPref();
-//			if( is_video && isVideoRecording() )
-//				enable_sound = false; // always disable shutter sound if we're taking a photo while recording video
-//    		if( MyDebug.LOG )
-//    			Log.d(TAG, "enable_sound? " + enable_sound);
-//        	camera_controller.enableShutterSound(enable_sound);
-//			if( using_android_l ) {
-//				boolean use_camera2_fast_burst = applicationInterface.useCamera2FastBurst();
-//				if( MyDebug.LOG )
-//					Log.d(TAG, "use_camera2_fast_burst? " + use_camera2_fast_burst);
-//				camera_controller.setUseExpoFastBurst( use_camera2_fast_burst );
-//			}
-//    		if( MyDebug.LOG )
-//    			Log.d(TAG, "about to call takePicture");
-//			camera_controller.takePicture(pictureCallback, errorCallback);
-//    		count_cameraTakePicture++;
-//    	}
-//		if( MyDebug.LOG )
-//			Log.d(TAG, "takePhotoWhenFocused exit");
-//    }
-    public void requestAutoFocus() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "requestAutoFocus");
-        cancelAutoFocus();
-        tryAutoFocus(false, true);
     }
 
     private void tryAutoFocus(final boolean startup, final boolean manual) {
@@ -4893,101 +4398,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         }
     }
 
-//	/** Take photo. The caller should aready have set the phase to PHASE_TAKING_PHOTO.
-//	 */
-//	private void takePhoto(boolean skip_autofocus) {
-//		if( MyDebug.LOG )
-//			Log.d(TAG, "takePhoto");
-//		if( camera_controller == null ) {
-//			Log.e(TAG, "camera not opened in takePhoto!");
-//			return;
-//		}
-//		applicationInterface.cameraInOperation(true, false);
-//        String current_ui_focus_value = getCurrentFocusValue();
-//		if( MyDebug.LOG )
-//			Log.d(TAG, "current_ui_focus_value is " + current_ui_focus_value);
-//
-//		if( autofocus_in_continuous_mode ) {
-//			if( MyDebug.LOG )
-//				Log.d(TAG, "continuous mode where user touched to focus");
-//			synchronized(this) {
-//				// as below, if an autofocus is in progress, then take photo when it's completed
-//				if( focus_success == FOCUS_WAITING ) {
-//					if( MyDebug.LOG )
-//						Log.d(TAG, "autofocus_in_continuous_mode: take photo after current focus");
-//					take_photo_after_autofocus = true;
-//					camera_controller.setCaptureFollowAutofocusHint(true);
-//				}
-//				else {
-//					// when autofocus_in_continuous_mode==true, it means the user recently touched to focus in continuous focus mode, so don't do another focus
-//					if( MyDebug.LOG )
-//						Log.d(TAG, "autofocus_in_continuous_mode: no need to refocus");
-//					takePhotoWhenFocused();
-//				}
-//			}
-//		}
-//		else if( camera_controller.focusIsContinuous() ) {
-//			if( MyDebug.LOG )
-//				Log.d(TAG, "call autofocus for continuous focus mode");
-//			// we call via autoFocus(), to avoid risk of taking photo while the continuous focus is focusing - risk of blurred photo, also sometimes get bug in such situations where we end of repeatedly focusing
-//			// this is the case even if skip_autofocus is true (as we still can't guarantee that continuous focusing might be occurring)
-//			// note: if the user touches to focus in continuous mode, we camera controller may be in auto focus mode, so we should only enter this codepath if the camera_controller is in continuous focus mode
-//	        CameraController.AutoFocusCallback autoFocusCallback = new CameraController.AutoFocusCallback() {
-//				@Override
-//				public void onAutoFocus(boolean success) {
-//					if( MyDebug.LOG )
-//						Log.d(TAG, "continuous mode autofocus complete: " + success);
-//					takePhotoWhenFocused();
-//				}
-//	        };
-//			camera_controller.autoFocus(autoFocusCallback, true);
-//		}
-//		else if( skip_autofocus || this.recentlyFocused() ) {
-//			if( MyDebug.LOG ) {
-//				if( skip_autofocus ) {
-//					Log.d(TAG, "skip_autofocus flag set");
-//				}
-//				else {
-//					Log.d(TAG, "recently focused successfully, so no need to refocus");
-//				}
-//			}
-//			takePhotoWhenFocused();
-//		}
-//		else if( current_ui_focus_value != null && ( current_ui_focus_value.equals("focus_mode_auto") || current_ui_focus_value.equals("focus_mode_macro") ) ) {
-//			// n.b., we check focus_value rather than camera_controller.supportsAutoFocus(), as we want to discount focus_mode_locked
-//			synchronized(this) {
-//				if( focus_success == FOCUS_WAITING ) {
-//					// Needed to fix bug (on Nexus 6, old camera API): if flash was on, pointing at a dark scene, and we take photo when already autofocusing, the autofocus never returned so we got stuck!
-//					// In general, probably a good idea to not redo a focus - just use the one that's already in progress
-//					if( MyDebug.LOG )
-//						Log.d(TAG, "take photo after current focus");
-//					take_photo_after_autofocus = true;
-//					camera_controller.setCaptureFollowAutofocusHint(true);
-//				}
-//				else {
-//					focus_success = FOCUS_DONE; // clear focus rectangle for new refocus
-//			        CameraController.AutoFocusCallback autoFocusCallback = new CameraController.AutoFocusCallback() {
-//						@Override
-//						public void onAutoFocus(boolean success) {
-//							if( MyDebug.LOG )
-//								Log.d(TAG, "autofocus complete: " + success);
-//							ensureFlashCorrect(); // need to call this in case user takes picture before startup focus completes!
-//							prepareAutoFocusPhoto();
-//							takePhotoWhenFocused();
-//						}
-//			        };
-//					if( MyDebug.LOG )
-//						Log.d(TAG, "start autofocus to take picture");
-//					camera_controller.autoFocus(autoFocusCallback, true);
-//					count_cameraAutoFocus++;
-//				}
-//			}
-//		}
-//		else {
-//			takePhotoWhenFocused();
-//		}
-//	}
-
     private void cancelAutoFocus() {
         if (MyDebug.LOG)
             Log.d(TAG, "cancelAutoFocus");
@@ -5020,7 +4430,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
             focus_success = success ? FOCUS_SUCCESS : FOCUS_FAILED;
             focus_complete_time = System.currentTimeMillis();
         }
-        if (manual && !cancelled && (success || applicationInterface.isTestAlwaysFocus())) {
+        if (manual && !cancelled && success) {
             successfully_focused = true;
             successfully_focused_time = focus_complete_time;
         }
@@ -5049,17 +4459,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
                 camera_controller.cancelAutoFocus();
             }
         }
-//		synchronized(this) {
-//			if( take_photo_after_autofocus ) {
-//				if( MyDebug.LOG )
-//					Log.d(TAG, "take_photo_after_autofocus is set");
-//				take_photo_after_autofocus = false;
-//				prepareAutoFocusPhoto();
-//				takePhotoWhenFocused();
-//			}
-//		}
-        if (MyDebug.LOG)
-            Log.d(TAG, "autoFocusCompleted exit");
     }
 
     public void startCameraPreview() {
@@ -5103,417 +4502,10 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         }
     }
 
-    public void onAccelerometerSensorChanged(SensorEvent event) {
-		/*if( MyDebug.LOG )
-    		Log.d(TAG, "onAccelerometerSensorChanged: " + event.values[0] + ", " + event.values[1] + ", " + event.values[2]);*/
-
-        this.has_gravity = true;
-        for (int i = 0; i < 3; i++) {
-            //this.gravity[i] = event.values[i];
-            this.gravity[i] = sensor_alpha * this.gravity[i] + (1.0f - sensor_alpha) * event.values[i];
-        }
-        calculateGeoDirection();
-
-        double x = gravity[0];
-        double y = gravity[1];
-        double z = gravity[2];
-        double mag = Math.sqrt(x * x + y * y + z * z);
-		/*if( MyDebug.LOG )
-			Log.d(TAG, "xyz: " + x + ", " + y + ", " + z);*/
-
-        this.has_pitch_angle = false;
-        if (mag > 1.0e-8) {
-            this.has_pitch_angle = true;
-            this.pitch_angle = Math.asin(-z / mag) * 180.0 / Math.PI;
-			/*if( MyDebug.LOG )
-				Log.d(TAG, "pitch: " + pitch_angle);*/
-
-            if (!is_test && Math.abs(pitch_angle) > 70.0) {
-                // level angle becomes unstable when device is near vertical
-                // note that if is_test, we always set the level angle - since the device typically lies face down when running tests...
-                this.has_level_angle = false;
-            } else {
-                this.has_level_angle = true;
-                this.natural_level_angle = Math.atan2(-x, y) * 180.0 / Math.PI;
-                if (this.natural_level_angle < -0.0) {
-                    this.natural_level_angle += 360.0;
-                }
-
-                updateLevelAngles();
-            }
-        } else {
-            Log.e(TAG, "accel sensor has zero mag: " + mag);
-            this.has_level_angle = false;
-        }
-
-    }
-
-    /**
-     * This method should be called when the natural level angle, or the calibration angle, has been updated, to update the other level angle variables.
-     */
-    public void updateLevelAngles() {
-        if (has_level_angle) {
-            this.level_angle = this.natural_level_angle;
-            double calibrated_level_angle = applicationInterface.getCalibratedLevelAngle();
-            this.level_angle -= calibrated_level_angle;
-            this.orig_level_angle = this.level_angle;
-            this.level_angle -= (float) this.current_orientation;
-            if (this.level_angle < -180.0) {
-                this.level_angle += 360.0;
-            } else if (this.level_angle > 180.0) {
-                this.level_angle -= 360.0;
-            }
-			/*if( MyDebug.LOG )
-				Log.d(TAG, "level_angle is now: " + level_angle);*/
-        }
-    }
-
-    public boolean hasLevelAngle() {
-        return this.has_level_angle;
-    }
-
-    public double getLevelAngleUncalibrated() {
-        return this.natural_level_angle - this.current_orientation;
-    }
-
-    public double getLevelAngle() {
-        return this.level_angle;
-    }
-
-    public double getOrigLevelAngle() {
-        return this.orig_level_angle;
-    }
-
-    public boolean hasPitchAngle() {
-        return this.has_pitch_angle;
-    }
-
-    public double getPitchAngle() {
-        return this.pitch_angle;
-    }
-
-    public void onMagneticSensorChanged(SensorEvent event) {
-        this.has_geomagnetic = true;
-        for (int i = 0; i < 3; i++) {
-            //this.geomagnetic[i] = event.values[i];
-            this.geomagnetic[i] = sensor_alpha * this.geomagnetic[i] + (1.0f - sensor_alpha) * event.values[i];
-        }
-        calculateGeoDirection();
-    }
-
-    private void calculateGeoDirection() {
-        if (!this.has_gravity || !this.has_geomagnetic) {
-            return;
-        }
-        if (!SensorManager.getRotationMatrix(this.deviceRotation, this.deviceInclination, this.gravity, this.geomagnetic)) {
-            return;
-        }
-        SensorManager.remapCoordinateSystem(this.deviceRotation, SensorManager.AXIS_X, SensorManager.AXIS_Z, this.cameraRotation);
-        boolean has_old_geo_direction = has_geo_direction;
-        this.has_geo_direction = true;
-        //SensorManager.getOrientation(cameraRotation, geo_direction);
-        SensorManager.getOrientation(cameraRotation, new_geo_direction);
-		/*if( MyDebug.LOG ) {
-			Log.d(TAG, "###");
-			Log.d(TAG, "old geo_direction: " + (geo_direction[0]*180/Math.PI) + ", " + (geo_direction[1]*180/Math.PI) + ", " + (geo_direction[2]*180/Math.PI));
-		}*/
-        for (int i = 0; i < 3; i++) {
-            float old_compass = (float) Math.toDegrees(geo_direction[i]);
-            float new_compass = (float) Math.toDegrees(new_geo_direction[i]);
-            if (has_old_geo_direction) {
-                float smoothFactorCompass = 0.1f;
-                float smoothThresholdCompass = 10.0f;
-                old_compass = lowPassFilter(old_compass, new_compass, smoothFactorCompass, smoothThresholdCompass);
-            } else {
-                old_compass = new_compass;
-            }
-            geo_direction[i] = (float) Math.toRadians(old_compass);
-        }
-		/*if( MyDebug.LOG ) {
-			Log.d(TAG, "new_geo_direction: " + (new_geo_direction[0]*180/Math.PI) + ", " + (new_geo_direction[1]*180/Math.PI) + ", " + (new_geo_direction[2]*180/Math.PI));
-			Log.d(TAG, "geo_direction: " + (geo_direction[0]*180/Math.PI) + ", " + (geo_direction[1]*180/Math.PI) + ", " + (geo_direction[2]*180/Math.PI));
-		}*/
-    }
-
-    /**
-     * Low pass filter, for angles.
-     *
-     * @param old_value Old value in degrees.
-     * @param new_value New value in degrees.
-     */
-    private float lowPassFilter(float old_value, float new_value, float smoothFactorCompass, float smoothThresholdCompass) {
-        // see http://stackoverflow.com/questions/4699417/android-compass-orientation-on-unreliable-low-pass-filter
-        // https://www.built.io/blog/applying-low-pass-filter-to-android-sensor-s-readings
-        // http://stackoverflow.com/questions/27846604/how-to-get-smooth-orientation-data-in-android
-        float diff = Math.abs(new_value - old_value);
-		/*if( MyDebug.LOG )
-			Log.d(TAG, "diff: " + diff);*/
-        if (diff < 180) {
-            if (diff > smoothThresholdCompass) {
-				/*if( MyDebug.LOG )
-					Log.d(TAG, "jump to new compass");*/
-                old_value = new_value;
-            } else {
-                old_value = old_value + smoothFactorCompass * (new_value - old_value);
-            }
-        } else {
-            if (360.0 - diff > smoothThresholdCompass) {
-				/*if( MyDebug.LOG )
-					Log.d(TAG, "jump to new compass");*/
-                old_value = new_value;
-            } else {
-                if (old_value > new_value) {
-                    old_value = (old_value + smoothFactorCompass * ((360 + new_value - old_value) % 360) + 360) % 360;
-                } else {
-                    old_value = (old_value - smoothFactorCompass * ((360 - new_value + old_value) % 360) + 360) % 360;
-                }
-            }
-        }
-        return old_value;
-    }
-
-    public boolean hasGeoDirection() {
-        return has_geo_direction;
-    }
-
-    public double getGeoDirection() {
-        return geo_direction[0];
-    }
-
-    public boolean supportsFaceDetection() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "supportsFaceDetection");
-        return supports_face_detection;
-    }
-
-    public boolean supportsVideoStabilization() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "supportsVideoStabilization");
-        return supports_video_stabilization;
-    }
-
-    public boolean supportsPhotoVideoRecording() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "supportsPhotoVideoRecording");
-        return supports_photo_video_recording && !video_high_speed;
-    }
-
-    public boolean canDisableShutterSound() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "canDisableShutterSound");
-        return can_disable_shutter_sound;
-    }
-
-    public List<String> getSupportedColorEffects() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "getSupportedColorEffects");
-        return this.color_effects;
-    }
-
-    public List<String> getSupportedSceneModes() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "getSupportedSceneModes");
-        return this.scene_modes;
-    }
-
-    public List<String> getSupportedWhiteBalances() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "getSupportedWhiteBalances");
-        return this.white_balances;
-    }
-
-    public String getISOKey() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "getISOKey");
-        return camera_controller == null ? "" : camera_controller.getISOKey();
-    }
-
-    /**
-     * Whether manual white balance temperatures can be specified via setWhiteBalanceTemperature().
-     */
-    public boolean supportsWhiteBalanceTemperature() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "supportsWhiteBalanceTemperature");
-        return this.supports_white_balance_temperature;
-    }
-
-    /**
-     * Minimum allowed white balance temperature.
-     */
-    public int getMinimumWhiteBalanceTemperature() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "getMinimumWhiteBalanceTemperature");
-        return this.min_temperature;
-    }
-
-    /**
-     * Maximum allowed white balance temperature.
-     */
-    public int getMaximumWhiteBalanceTemperature() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "getMaximumWhiteBalanceTemperature");
-        return this.max_temperature;
-    }
-
-    /**
-     * Returns whether a range of manual ISO values can be set. If this returns true, use
-     * getMinimumISO() and getMaximumISO() to return the valid range of values. If this returns
-     * false, getSupportedISOs() to find allowed ISO values.
-     */
-    public boolean supportsISORange() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "supportsISORange");
-        return this.supports_iso_range;
-    }
-
-    /**
-     * If supportsISORange() returns false, use this method to return a list of supported ISO values:
-     * - If this is null, then manual ISO isn't supported.
-     * - If non-null, this will include "auto" to indicate auto-ISO, and one or more numerical ISO
-     * values.
-     * If supportsISORange() returns true, then this method should not be used (and it will return
-     * null). Instead use getMinimumISO() and getMaximumISO().
-     */
-    public List<String> getSupportedISOs() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "getSupportedISOs");
-        return this.isos;
-    }
-
-    /**
-     * Returns minimum ISO value. Only relevant if supportsISORange() returns true.
-     */
-    public int getMinimumISO() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "getMinimumISO");
-        return this.min_iso;
-    }
-
-    /**
-     * Returns maximum ISO value. Only relevant if supportsISORange() returns true.
-     */
-    public int getMaximumISO() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "getMaximumISO");
-        return this.max_iso;
-    }
-
-    public float getMinimumFocusDistance() {
-        return this.minimum_focus_distance;
-    }
-
-    public boolean supportsExposureTime() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "supportsExposureTime");
-        return this.supports_exposure_time;
-    }
-
-    public long getMinimumExposureTime() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "getMinimumExposureTime");
-        return this.min_exposure_time;
-    }
-
-    public long getMaximumExposureTime() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "getMaximumExposureTime");
-        long max = max_exposure_time;
-//		if( applicationInterface.isExpoBracketingPref() || applicationInterface.isCameraBurstPref() ) {
-//			// doesn't make sense to allow exposure times more than 0.5s in these modes
-//			max = Math.min(max_exposure_time, 1000000000L/2);
-//		}
-        return max;
-    }
-
-    public boolean supportsExposures() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "supportsExposures");
-        return this.exposures != null;
-    }
-
-    public int getMinimumExposure() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "getMinimumExposure");
-        return this.min_exposure;
-    }
-
-    public int getMaximumExposure() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "getMaximumExposure");
-        return this.max_exposure;
-    }
-
-    public int getCurrentExposure() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "getCurrentExposure");
-        if (camera_controller == null) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "camera not opened!");
-            return 0;
-        }
-        return camera_controller.getExposureCompensation();
-    }
-
-    public boolean supportsExpoBracketing() {
-		/*if( MyDebug.LOG )
-			Log.d(TAG, "supportsExpoBracketing");*/
-        return this.supports_expo_bracketing;
-    }
-
-    public int maxExpoBracketingNImages() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "maxExpoBracketingNImages");
-        return this.max_expo_bracketing_n_images;
-    }
-
-    public boolean supportsRaw() {
-        return this.supports_raw;
-    }
-
-    /**
-     * Returns the horizontal angle of view in degrees (when unzoomed).
-     */
-    public float getViewAngleX() {
-        return this.view_angle_x;
-    }
-
-    /**
-     * Returns the vertical angle of view in degrees (when unzoomed).
-     */
-    public float getViewAngleY() {
-        return this.view_angle_y;
-    }
-
-    public List<CameraController.Size> getSupportedPreviewSizes() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "getSupportedPreviewSizes");
-        return this.supported_preview_sizes;
-    }
-
-    public CameraController.Size getCurrentPictureSize() {
-        if (current_size_index == -1 || sizes == null)
-            return null;
-        return sizes.get(current_size_index);
-    }
-
-    public VideoQualityHandler getVideoQualityHander() {
-        return this.video_quality_handler;
-    }
-
-    public List<String> getSupportedFocusValues() {
-        return supported_focus_values;
-    }
-
     public int getCameraId() {
         if (camera_controller == null)
             return 0;
         return camera_controller.getCameraId();
-    }
-
-    public String getCameraAPI() {
-        if (camera_controller == null)
-            return "None";
-        return camera_controller.getAPI();
     }
 
     public void onResume() {
@@ -5586,164 +4578,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         }
     }
 
-    public void onSaveInstanceState(Bundle state) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "onSaveInstanceState");
-    }
-
-    public void showToast(final ToastBoxer clear_toast, final int message_id) {
-        showToast(clear_toast, getResources().getString(message_id));
-    }
-
-    public void showToast(final ToastBoxer clear_toast, final String message) {
-        showToast(clear_toast, message, 32);
-    }
-
-    private void showToast(final ToastBoxer clear_toast, final String message, final int offset_y_dp) {
-        if (!applicationInterface.getShowToastsPref()) {
-            return;
-        }
-
-        class RotatedTextView extends View {
-            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            private final Rect bounds = new Rect();
-            private final Rect sub_bounds = new Rect();
-            private final RectF rect = new RectF();
-            private String[] lines;
-
-            public RotatedTextView(String text, Context context) {
-                super(context);
-
-                this.lines = text.split("\n");
-            }
-
-            void setText(String text) {
-                this.lines = text.split("\n");
-            }
-
-            @Override
-            protected void onDraw(Canvas canvas) {
-                final float scale = Preview.this.getResources().getDisplayMetrics().density;
-                paint.setTextSize(14 * scale + 0.5f); // convert dps to pixels
-                paint.setShadowLayer(1, 0, 1, Color.BLACK);
-                //paint.getTextBounds(text, 0, text.length(), bounds);
-                boolean first_line = true;
-                for (String line : lines) {
-                    paint.getTextBounds(line, 0, line.length(), sub_bounds);
-					/*if( MyDebug.LOG ) {
-						Log.d(TAG, "line: " + line + " sub_bounds: " + sub_bounds);
-					}*/
-                    if (first_line) {
-                        bounds.set(sub_bounds);
-                        first_line = false;
-                    } else {
-                        bounds.top = Math.min(sub_bounds.top, bounds.top);
-                        bounds.bottom = Math.max(sub_bounds.bottom, bounds.bottom);
-                        bounds.left = Math.min(sub_bounds.left, bounds.left);
-                        bounds.right = Math.max(sub_bounds.right, bounds.right);
-                    }
-                }
-                // above we've worked out the maximum bounds of each line - this is useful for left/right, but for the top/bottom
-                // we would rather use a consistent height no matter what the text is (otherwise we have the problem of varying
-                // gap between lines, depending on what the characters are).
-                final String reference_text = "Ap";
-                paint.getTextBounds(reference_text, 0, reference_text.length(), sub_bounds);
-                bounds.top = sub_bounds.top;
-                bounds.bottom = sub_bounds.bottom;
-				/*if( MyDebug.LOG ) {
-					Log.d(TAG, "bounds: " + bounds);
-				}*/
-                int height = bounds.bottom - bounds.top; // height of each line
-                bounds.bottom += ((lines.length - 1) * height) / 2;
-                bounds.top -= ((lines.length - 1) * height) / 2;
-                final int padding = (int) (14 * scale + 0.5f); // padding for the shaded rectangle; convert dps to pixels
-                final int offset_y = (int) (offset_y_dp * scale + 0.5f); // convert dps to pixels
-                canvas.save();
-                canvas.rotate(ui_rotation, canvas.getWidth() / 2.0f, canvas.getHeight() / 2.0f);
-
-                rect.left = canvas.getWidth() / 2 - bounds.width() / 2 + bounds.left - padding;
-                rect.top = canvas.getHeight() / 2 + bounds.top - padding + offset_y;
-                rect.right = canvas.getWidth() / 2 - bounds.width() / 2 + bounds.right + padding;
-                rect.bottom = canvas.getHeight() / 2 + bounds.bottom + padding + offset_y;
-
-                paint.setStyle(Paint.Style.FILL);
-                paint.setColor(Color.rgb(50, 50, 50));
-                //canvas.drawRect(rect, paint);
-                final float radius = (24 * scale + 0.5f); // convert dps to pixels
-                canvas.drawRoundRect(rect, radius, radius, paint);
-
-                paint.setColor(Color.WHITE);
-                int ypos = canvas.getHeight() / 2 + offset_y - ((lines.length - 1) * height) / 2;
-                for (String line : lines) {
-                    canvas.drawText(line, canvas.getWidth() / 2 - bounds.width() / 2, ypos, paint);
-                    ypos += height;
-                }
-                canvas.restore();
-            }
-        }
-
-        if (MyDebug.LOG)
-            Log.d(TAG, "showToast: " + message);
-        final Activity activity = (Activity) this.getContext();
-        // We get a crash on emulator at least if Toast constructor isn't run on main thread (e.g., the toast for taking a photo when on timer).
-        // Also see http://stackoverflow.com/questions/13267239/toast-from-a-non-ui-thread
-        activity.runOnUiThread(new Runnable() {
-            public void run() {
-				/*if( clear_toast != null && clear_toast.toast != null )
-					clear_toast.toast.cancel();
-
-				Toast toast = new Toast(activity);
-				if( clear_toast != null )
-					clear_toast.toast = toast;*/
-                // This method is better, as otherwise a previous toast (with different or no clear_toast) never seems to clear if we repeatedly issue new toasts - this doesn't happen if we reuse existing toasts if possible
-                // However should only do this if the previous toast was the most recent toast (to avoid messing up ordering)
-                Toast toast;
-                if (clear_toast != null && clear_toast.toast != null && clear_toast.toast == last_toast) {
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "reuse last toast: " + last_toast);
-                    toast = clear_toast.toast;
-                    // for performance, important to reuse the same view, instead of creating a new one (otherwise we get jerky preview update e.g. for changing manual focus slider)
-                    RotatedTextView view = (RotatedTextView) toast.getView();
-                    view.setText(message);
-                    view.invalidate(); // make sure the toast is redrawn
-                    toast.setView(view);
-                } else {
-                    if (clear_toast != null && clear_toast.toast != null) {
-                        if (MyDebug.LOG)
-                            Log.d(TAG, "cancel last toast: " + clear_toast.toast);
-                        clear_toast.toast.cancel();
-                    }
-                    toast = new Toast(activity);
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "created new toast: " + toast);
-                    if (clear_toast != null)
-                        clear_toast.toast = toast;
-                    View text = new RotatedTextView(message, activity);
-                    toast.setView(text);
-                }
-                toast.setDuration(Toast.LENGTH_SHORT);
-                if (!((Activity) getContext()).isFinishing()) {
-                    // Workaround for crash due to bug in Android 7.1 when activity is closing whilst toast shows.
-                    // This was fixed in Android 8, but still good to fix the crash on Android 7.1! See
-                    // https://stackoverflow.com/questions/47548317/what-belong-is-badtokenexception-at-classes-of-project and
-                    // https://github.com/drakeet/ToastCompat#why .
-                    toast.show();
-                }
-                last_toast = toast;
-            }
-        });
-    }
-
-    public int getUIRotation() {
-        return this.ui_rotation;
-    }
-
-    public void setUIRotation(int ui_rotation) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "setUIRotation");
-        this.ui_rotation = ui_rotation;
-    }
-
     public boolean isVideo() {
         return is_video;
     }
@@ -5801,16 +4635,8 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         return this.camera_controller_manager;
     }
 
-    public boolean supportsFocus() {
-        return this.supported_focus_values != null;
-    }
-
     public boolean supportsFlash() {
         return this.supported_flash_values != null;
-    }
-
-    public Pair<Integer, Integer> getFocusPos() {
-        return new Pair<>(focus_screen_x, focus_screen_y);
     }
 
     public boolean isTakingPhotoOrOnTimer() {
@@ -5831,31 +4657,11 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
         return this.faces_detected;
     }
 
-    /**
-     * Returns the current zoom factor of the camera. Always returns 1.0f if zoom isn't supported.
-     */
-    public float getZoomRatio() {
-        if (zoom_ratios == null)
-            return 1.0f;
-        int zoom_factor = camera_controller.getZoom();
-        return this.zoom_ratios.get(zoom_factor) / 100.0f;
-    }
-
     enum CameraOpenState {
         CAMERAOPENSTATE_CLOSED, // have yet to attempt to open the camera (either at all, or since the camera was closed)
         CAMERAOPENSTATE_OPENING, // the camera is currently being opened (on a background thread)
         CAMERAOPENSTATE_OPENED, // either the camera is open (if camera_controller!=null) or we failed to open the camera (if camera_controller==null)
         CAMERAOPENSTATE_CLOSING // the camera is currently being closed (on a background thread)
-    }
-
-    enum FaceLocation {
-        FACELOCATION_UNSET,
-        FACELOCATION_UNKNOWN,
-        FACELOCATION_LEFT,
-        FACELOCATION_RIGHT,
-        FACELOCATION_TOP,
-        FACELOCATION_BOTTOM,
-        FACELOCATION_CENTRE
     }
 
     private interface CloseCameraCallback {

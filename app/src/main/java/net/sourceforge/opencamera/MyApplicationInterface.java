@@ -5,9 +5,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.Rect;
 import android.media.MediaRecorder;
 import android.net.Uri;
 import android.os.Build;
@@ -22,19 +19,15 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ImageButton;
 
-import net.sourceforge.opencamera.CameraController.CameraController;
 import net.sourceforge.opencamera.Preview.ApplicationInterface;
 import net.sourceforge.opencamera.Preview.VideoProfile;
-import net.sourceforge.opencamera.UI.DrawPreview;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -43,21 +36,9 @@ import java.util.TimerTask;
 public class MyApplicationInterface implements ApplicationInterface {
 	private static final String TAG = "MyApplicationInterface";
 
-	// note, okay to change the order of enums in future versions, as getPhotoMode() does not rely on the order for the saved photo mode
-    public enum PhotoMode {
-    	Standard,
-		DRO, // single image "fake" HDR
-    	HDR, // HDR created from multiple (expo bracketing) images
-    	ExpoBracketing, // take multiple expo bracketed images, without combining to a single image
-		NoiseReduction
-    }
     
 	private final MainActivity main_activity;
 	private final StorageUtils storageUtils;
-	private final DrawPreview drawPreview;
-//	private final ImageSaver imageSaver;
-
-	private final float panorama_pics_per_screen = 2.0f;
 
 	private File last_video_file = null;
 	private Uri last_video_file_saf = null;
@@ -65,33 +46,10 @@ public class MyApplicationInterface implements ApplicationInterface {
 	private final Timer subtitleVideoTimer = new Timer();
 	private TimerTask subtitleVideoTimerTask;
 
-	private final Rect text_bounds = new Rect();
     private boolean used_front_screen_flash ;
 
 	// store to avoid calling PreferenceManager.getDefaultSharedPreferences() repeatedly
 	private final SharedPreferences sharedPreferences;
-
-	private boolean last_images_saf; // whether the last images array are using SAF or not
-	/** This class keeps track of the images saved in this batch, for use with Pause Preview option, so we can share or trash images.
-	 */
-	private static class LastImage {
-		public final boolean share; // one of the images in the list should have share set to true, to indicate which image to share
-		public final String name;
-		final Uri uri;
-
-		LastImage(Uri uri, boolean share) {
-			this.name = null;
-			this.uri = uri;
-			this.share = share;
-		}
-		
-		LastImage(String filename, boolean share) {
-	    	this.name = filename;
-	    	this.uri = Uri.parse("file://" + this.name);
-			this.share = share;
-		}
-	}
-	private final List<LastImage> last_images = new ArrayList<>();
 	
 	// camera properties which are saved in bundle, but not stored in preferences (so will be remembered if the app goes into background, but not after restart)
 	private int cameraId = 0;
@@ -111,10 +69,6 @@ public class MyApplicationInterface implements ApplicationInterface {
 		this.storageUtils = new StorageUtils(main_activity);
 		if( MyDebug.LOG )
 			Log.d(TAG, "MyApplicationInterface: time after creating storage utils: " + (System.currentTimeMillis() - debug_time));
-		this.drawPreview = new DrawPreview(main_activity, this);
-		
-//		this.imageSaver = new ImageSaver(main_activity);
-//		this.imageSaver.start();
 		
         if( savedInstanceState != null ) {
 			// load the things we saved in onSaveInstanceState().
@@ -156,9 +110,6 @@ public class MyApplicationInterface implements ApplicationInterface {
 	void onDestroy() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "onDestroy");
-		if( drawPreview != null ) {
-			drawPreview.onDestroy();
-		}
 	}
 	
 	StorageUtils getStorageUtils() {
@@ -274,29 +225,6 @@ public class MyApplicationInterface implements ApplicationInterface {
 		return sharedPreferences.getInt(PreferenceKeys.WhiteBalanceTemperaturePreferenceKey, 5000);
 	}
 
-//	@Override
-//	public String getISOPref() {
-//    	return sharedPreferences.getString(PreferenceKeys.ISOPreferenceKey, "auto");
-//    }
-//
-    @Override
-	public int getExposureCompensationPref() {
-		String value = sharedPreferences.getString(PreferenceKeys.ExposurePreferenceKey, "0");
-		if( MyDebug.LOG )
-			Log.d(TAG, "saved exposure value: " + value);
-		int exposure = 0;
-		try {
-			exposure = Integer.parseInt(value);
-			if( MyDebug.LOG )
-				Log.d(TAG, "exposure: " + exposure);
-		}
-		catch(NumberFormatException exception) {
-			if( MyDebug.LOG )
-				Log.d(TAG, "exposure invalid format, can't parse to int");
-		}
-		return exposure;
-    }
-
     @Override
 	public Pair<Integer, Integer> getCameraResolutionPref() {
 		String resolution_value = sharedPreferences.getString(PreferenceKeys.getResolutionPreferenceKey(cameraId), "");
@@ -354,21 +282,6 @@ public class MyApplicationInterface implements ApplicationInterface {
 		}
 		return image_quality;
 	}
-
-//	@Override
-//    public int getImageQualityPref(){
-//		if( MyDebug.LOG )
-//			Log.d(TAG, "getImageQualityPref");
-//		// see documentation for getSaveImageQualityPref(): in DRO mode we want to take the photo
-//		// at 100% quality for post-processing, the final image will then be saved at the user requested
-//		// setting
-//		PhotoMode photo_mode = getPhotoMode();
-//		if( photo_mode == PhotoMode.DRO )
-//			return 100;
-//		else if( photo_mode == PhotoMode.NoiseReduction )
-//			return 100;
-//		return getSaveImageQualityPref();
-//    }
     
 	@Override
 	public boolean getFaceDetectionPref() {
@@ -387,7 +300,7 @@ public class MyApplicationInterface implements ApplicationInterface {
     
     @Override
 	public boolean getForce4KPref() {
-		if( cameraId == 0 && sharedPreferences.getBoolean(PreferenceKeys.getForceVideo4KPreferenceKey(), false) && main_activity.supportsForceVideo4K() ) {
+		if( cameraId == 0 && sharedPreferences.getBoolean(PreferenceKeys.getForceVideo4KPreferenceKey(), false) ) {
 			return true;
 		}
 		return false;
@@ -564,21 +477,8 @@ public class MyApplicationInterface implements ApplicationInterface {
     }
 
     @Override
-    public boolean getPausePreviewPref() {
-		if( main_activity.getPreview().isVideoRecording() ) {
-			// don't pause preview when taking photos while recording video!
-			return false;
-		}
-    	return sharedPreferences.getBoolean(PreferenceKeys.PausePreviewPreferenceKey, false);
-    }
-
-    @Override
 	public boolean getShowToastsPref() {
     	return sharedPreferences.getBoolean(PreferenceKeys.ShowToastsPreferenceKey, true);
-    }
-
-    public boolean getThumbnailAnimationPref() {
-    	return sharedPreferences.getBoolean(PreferenceKeys.ThumbnailAnimationPreferenceKey, true);
     }
     
     @Override
@@ -591,42 +491,6 @@ public class MyApplicationInterface implements ApplicationInterface {
     	return sharedPreferences.getBoolean(PreferenceKeys.getStartupFocusPreferenceKey(), true);
     }
 
-    @Override
-    public long getTimerPref() {
-		String timer_value = sharedPreferences.getString(PreferenceKeys.getTimerPreferenceKey(), "0");
-		long timer_delay;
-		try {
-			timer_delay = (long)Integer.parseInt(timer_value) * 1000;
-		}
-        catch(NumberFormatException e) {
-    		if( MyDebug.LOG )
-    			Log.e(TAG, "failed to parse preference_timer value: " + timer_value);
-    		e.printStackTrace();
-    		timer_delay = 0;
-        }
-		return timer_delay;
-    }
-    
-    @Override
-    public String getRepeatPref() {
-    	return sharedPreferences.getString(PreferenceKeys.getBurstModePreferenceKey(), "1");
-    }
-    
-    @Override
-    public long getRepeatIntervalPref() {
-		String timer_value = sharedPreferences.getString(PreferenceKeys.getBurstIntervalPreferenceKey(), "0");
-		long timer_delay;
-		try {
-			timer_delay = (long)Integer.parseInt(timer_value) * 1000;
-		}
-        catch(NumberFormatException e) {
-    		if( MyDebug.LOG )
-    			Log.e(TAG, "failed to parse preference_burst_interval value: " + timer_value);
-    		e.printStackTrace();
-    		timer_delay = 0;
-        }
-		return timer_delay;
-    }
     @Override
 	public boolean getRecordAudioPref() {
     	return sharedPreferences.getBoolean(PreferenceKeys.getRecordAudioPreferenceKey(), true);
@@ -655,21 +519,9 @@ public class MyApplicationInterface implements ApplicationInterface {
 	}
 
 	@Override
-    public int getZoomPref() {
-		if( MyDebug.LOG )
-			Log.d(TAG, "getZoomPref: " + zoom_factor);
-    	return zoom_factor;
-    }
-
-	@Override
 	public double getCalibratedLevelAngle() {
 		return sharedPreferences.getFloat(PreferenceKeys.CalibratedLevelAnglePreferenceKey, 0.0f);
 	}
-
-	@Override
-    public long getExposureTimePref() {
-    	return sharedPreferences.getLong(PreferenceKeys.ExposureTimePreferenceKey, CameraController.EXPOSURE_TIME_DEFAULT);
-    }
     
     @Override
 	public float getFocusDistancePref() {
@@ -680,19 +532,6 @@ public class MyApplicationInterface implements ApplicationInterface {
 	public boolean useCamera2FakeFlash() {
 		return sharedPreferences.getBoolean(PreferenceKeys.Camera2FakeFlashPreferenceKey, false);
 	}
-
-	@Override
-	public boolean useCamera2FastBurst() {
-		return sharedPreferences.getBoolean(PreferenceKeys.Camera2FastBurstPreferenceKey, true);
-	}
-
-	@Override
-    public boolean isTestAlwaysFocus() {
-		if( MyDebug.LOG ) {
-			Log.d(TAG, "isTestAlwaysFocus: " + main_activity.is_test);
-		}
-    	return main_activity.is_test;
-    }
 
 	@Override
 	public void cameraSetup() {
@@ -896,7 +735,6 @@ public class MyApplicationInterface implements ApplicationInterface {
 					Log.d(TAG, "real_file: " + real_file);
 				if( real_file != null ) {
 					storageUtils.broadcastFile(real_file, false, true, true);
-					main_activity.test_last_saved_image = real_file.getAbsolutePath();
 				}
 				else {
 					// announce the SAF Uri
@@ -941,7 +779,6 @@ public class MyApplicationInterface implements ApplicationInterface {
 			if( MyDebug.LOG )
 				Log.d(TAG, "max filesize reached");
 			int message_id = R.string.video_max_filesize;
-			main_activity.getPreview().showToast(null, message_id);
 			// in versions 1.24 and 1.24, there was a bug where we had "info_" for onVideoError and "error_" for onVideoInfo!
 			// fixed in 1.25; also was correct for 1.23 and earlier
 			String debug_value = "info_" + what + "_" + extra;
@@ -953,12 +790,10 @@ public class MyApplicationInterface implements ApplicationInterface {
 
 	@Override
 	public void onFailedStartPreview() {
-		main_activity.getPreview().showToast(null, R.string.failed_to_start_camera_preview);
 	}
 
 	@Override
 	public void onCameraError() {
-		main_activity.getPreview().showToast(null, R.string.camera_error);
 	}
 
 	@Override
@@ -972,7 +807,6 @@ public class MyApplicationInterface implements ApplicationInterface {
 				Log.d(TAG, "error: server died");
 			message_id = R.string.video_error_server_died;
 		}
-		main_activity.getPreview().showToast(null, message_id);
 		// in versions 1.24 and 1.24, there was a bug where we had "info_" for onVideoError and "error_" for onVideoInfo!
 		// fixed in 1.25; also was correct for 1.23 and earlier
 		String debug_value = "error_" + what + "_" + extra;
@@ -993,7 +827,6 @@ public class MyApplicationInterface implements ApplicationInterface {
 		else {
 			error_message = getContext().getResources().getString(R.string.failed_to_record_video);
 		}
-		main_activity.getPreview().showToast(null, error_message);
 		ImageButton view = (ImageButton)main_activity.findViewById(R.id.take_photo);
 		view.setImageResource(R.drawable.take_video_selector);
 		view.setContentDescription( getContext().getResources().getString(R.string.start_video) );
@@ -1010,17 +843,14 @@ public class MyApplicationInterface implements ApplicationInterface {
 		if( features.length() > 0 ) {
 			error_message += ", " + features + " " + getContext().getResources().getString(R.string.not_supported);
 		}
-		main_activity.getPreview().showToast(null, error_message);
 	}
 	
 	@Override
 	public void onFailedReconnectError() {
-		main_activity.getPreview().showToast(null, R.string.failed_to_reconnect_camera);
 	}
 	
 	@Override
 	public void onFailedCreateVideoFileError() {
-		main_activity.getPreview().showToast(null, R.string.failed_to_save_video);
 		ImageButton view = (ImageButton)main_activity.findViewById(R.id.take_photo);
 		view.setImageResource(R.drawable.take_video_selector);
 		view.setContentDescription( getContext().getResources().getString(R.string.start_video) );
@@ -1035,7 +865,6 @@ public class MyApplicationInterface implements ApplicationInterface {
     		main_activity.setBrightnessForCamera(false); // ensure screen brightness matches user preference, after using front screen flash
     		used_front_screen_flash = false;
     	}
-    	drawPreview.cameraInOperation(in_operation);
     	main_activity.getMainUI().showGUI(!in_operation, is_video);
     }
 
@@ -1045,11 +874,6 @@ public class MyApplicationInterface implements ApplicationInterface {
 	public void cameraClosed() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "cameraClosed");
-	}
-
-	@Override
-	public void layoutUI() {
-		main_activity.getMainUI().layoutUI();
 	}
 	
 	@Override
@@ -1192,103 +1016,14 @@ public class MyApplicationInterface implements ApplicationInterface {
 		this.focus_distance = focus_distance;
 	}
 
-    private int getStampFontColor() {
-		String color = sharedPreferences.getString(PreferenceKeys.StampFontColorPreferenceKey, "#ffffff");
-		return Color.parseColor(color);
-    }
-
     @Override
     public void onDrawPreview(Canvas canvas) {
-    	drawPreview.onDrawPreview(canvas);
     }
 
 	public enum Alignment {
 		ALIGNMENT_TOP,
 		ALIGNMENT_CENTRE,
 		ALIGNMENT_BOTTOM
-	}
-
-    public int drawTextWithBackground(Canvas canvas, Paint paint, String text, int foreground, int background, int location_x, int location_y) {
-		return drawTextWithBackground(canvas, paint, text, foreground, background, location_x, location_y, Alignment.ALIGNMENT_BOTTOM);
-	}
-
-	public int drawTextWithBackground(Canvas canvas, Paint paint, String text, int foreground, int background, int location_x, int location_y, Alignment alignment_y) {
-		return drawTextWithBackground(canvas, paint, text, foreground, background, location_x, location_y, alignment_y, null, true);
-	}
-
-	public int drawTextWithBackground(Canvas canvas, Paint paint, String text, int foreground, int background, int location_x, int location_y, Alignment alignment_y, String ybounds_text, boolean shadow) {
-		return drawTextWithBackground(canvas, paint, text, foreground, background, location_x, location_y, alignment_y, null, shadow, null);
-	}
-
-	public int drawTextWithBackground(Canvas canvas, Paint paint, String text, int foreground, int background, int location_x, int location_y, Alignment alignment_y, String ybounds_text, boolean shadow, Rect bounds) {
-		final float scale = getContext().getResources().getDisplayMetrics().density;
-		paint.setStyle(Paint.Style.FILL);
-		paint.setColor(background);
-		paint.setAlpha(64);
-		if( bounds != null ) {
-			text_bounds.set(bounds);
-		}
-		else {
-			int alt_height = 0;
-			if( ybounds_text != null ) {
-				paint.getTextBounds(ybounds_text, 0, ybounds_text.length(), text_bounds);
-				alt_height = text_bounds.bottom - text_bounds.top;
-			}
-			paint.getTextBounds(text, 0, text.length(), text_bounds);
-			if( ybounds_text != null ) {
-				text_bounds.bottom = text_bounds.top + alt_height;
-			}
-		}
-		final int padding = (int) (2 * scale + 0.5f); // convert dps to pixels
-		if( paint.getTextAlign() == Paint.Align.RIGHT || paint.getTextAlign() == Paint.Align.CENTER ) {
-			float width = paint.measureText(text); // n.b., need to use measureText rather than getTextBounds here
-			/*if( MyDebug.LOG )
-				Log.d(TAG, "width: " + width);*/
-			if( paint.getTextAlign() == Paint.Align.CENTER )
-				width /= 2.0f;
-			text_bounds.left -= width;
-			text_bounds.right -= width;
-		}
-		/*if( MyDebug.LOG )
-			Log.d(TAG, "text_bounds left-right: " + text_bounds.left + " , " + text_bounds.right);*/
-		text_bounds.left += location_x - padding;
-		text_bounds.right += location_x + padding;
-		// unclear why we need the offset of -1, but need this to align properly on Galaxy Nexus at least
-		int top_y_diff = - text_bounds.top + padding - 1;
-		if( alignment_y == Alignment.ALIGNMENT_TOP ) {
-			int height = text_bounds.bottom - text_bounds.top + 2*padding;
-			text_bounds.top = location_y - 1;
-			text_bounds.bottom = text_bounds.top + height;
-			location_y += top_y_diff;
-		}
-		else if( alignment_y == Alignment.ALIGNMENT_CENTRE ) {
-			int height = text_bounds.bottom - text_bounds.top + 2*padding;
-			//int y_diff = - text_bounds.top + padding - 1;
-			text_bounds.top = (int)(0.5 * ( (location_y - 1) + (text_bounds.top + location_y - padding) )); // average of ALIGNMENT_TOP and ALIGNMENT_BOTTOM
-			text_bounds.bottom = text_bounds.top + height;
-			location_y += (int)(0.5*top_y_diff); // average of ALIGNMENT_TOP and ALIGNMENT_BOTTOM
-		}
-		else {
-			text_bounds.top += location_y - padding;
-			text_bounds.bottom += location_y + padding;
-		}
-		if( shadow ) {
-			canvas.drawRect(text_bounds, paint);
-		}
-		paint.setColor(foreground);
-		canvas.drawText(text, location_x, location_y, paint);
-		return text_bounds.bottom - text_bounds.top;
-	}
-
-	private boolean isImageCaptureIntent() {
-		boolean image_capture_intent = false;
-		String action = main_activity.getIntent().getAction();
-		if( MediaStore.ACTION_IMAGE_CAPTURE.equals(action) || MediaStore.ACTION_IMAGE_CAPTURE_SECURE.equals(action) ) {
-			if( MyDebug.LOG )
-				Log.d(TAG, "from image capture intent");
-			image_capture_intent = true;
-		}
-		return image_capture_intent;
 	}
 	
 	public boolean test_set_available_memory = false;

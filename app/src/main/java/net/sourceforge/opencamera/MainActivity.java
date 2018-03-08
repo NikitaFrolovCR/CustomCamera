@@ -1,64 +1,40 @@
 package net.sourceforge.opencamera;
 
 import android.Manifest;
-import android.animation.ArgbEvaluator;
-import android.animation.ValueAnimator;
 import android.annotation.TargetApi;
 import android.app.Activity;
-import android.app.ActivityManager;
-import android.app.AlertDialog;
-import android.app.KeyguardManager;
-import android.content.ActivityNotFoundException;
-import android.content.ContentResolver;
 import android.content.Context;
-import android.content.DialogInterface;
-import android.content.DialogInterface.OnDismissListener;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
-import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.graphics.Matrix;
-import android.graphics.PorterDuff;
 import android.hardware.Sensor;
-import android.hardware.SensorEvent;
-import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.ParcelFileDescriptor;
 import android.os.StatFs;
 import android.preference.PreferenceManager;
-import android.provider.MediaStore;
 import android.renderscript.RenderScript;
 import android.speech.tts.TextToSpeech;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.util.Log;
 import android.view.Menu;
-import android.view.OrientationEventListener;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
-import android.widget.ImageButton;
 
-import net.sourceforge.opencamera.CameraController.CameraController;
 import net.sourceforge.opencamera.CameraController.CameraControllerManager2;
 import net.sourceforge.opencamera.Preview.Preview;
-import net.sourceforge.opencamera.Preview.VideoProfile;
-import net.sourceforge.opencamera.UI.FolderChooserDialog;
 import net.sourceforge.opencamera.UI.MainUI;
 
 import java.io.File;
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.Hashtable;
 import java.util.Locale;
 import java.util.Map;
@@ -70,68 +46,31 @@ public class MainActivity extends Activity {
     private static final String TAG = "MainActivity";
     // application shortcuts:
     private final Map<Integer, Bitmap> preloaded_bitmap_resources = new Hashtable<>();
-    private final ToastBoxer switch_video_toast = new ToastBoxer();
-    private final PreferencesListener preferencesListener = new PreferencesListener();
     final private int MY_PERMISSIONS_REQUEST_CAMERA = 0;
     final private int MY_PERMISSIONS_REQUEST_STORAGE = 1;
     final private int MY_PERMISSIONS_REQUEST_RECORD_AUDIO = 2;
-    final private int MY_PERMISSIONS_REQUEST_LOCATION = 3;
     // for testing; must be volatile for test project reading the state
-    public boolean is_test; // whether called from OpenCamera.test testing
     public volatile Bitmap gallery_bitmap;
-    public volatile String test_last_saved_image;
     private SensorManager mSensorManager;
     private Sensor mSensorAccelerometer;
     private Sensor mSensorMagnetic;
     private MainUI mainUI;
 
     //private boolean ui_placement_right = true;
-    private TextFormatter textFormatter;
     private MyApplicationInterface applicationInterface;
     private Preview preview;
-    private final SensorEventListener accelerometerListener = new SensorEventListener() {
-        @Override
-        public void onAccuracyChanged(Sensor sensor, int accuracy) {
-        }
-
-        @Override
-        public void onSensorChanged(SensorEvent event) {
-            preview.onAccelerometerSensorChanged(event);
-        }
-    };
-    private final SensorEventListener magneticListener = new SensorEventListener() {
-        @Override
-        public void onAccuracyChanged(Sensor sensor, int accuracy) {
-        }
-
-        @Override
-        public void onSensorChanged(SensorEvent event) {
-            preview.onMagneticSensorChanged(event);
-        }
-    };
-    private OrientationEventListener orientationEventListener;
-    private int large_heap_memory;
-    private boolean supports_auto_stabilise;
-    private boolean supports_force_video_4k;
     private boolean supports_camera2;
 
-    private boolean saf_dialog_from_preferences; // if a SAF dialog is opened, this records whether we opened it from the Preferences
     private boolean camera_in_background; // whether the camera is covered by a fragment/dialog (such as settings or folder picker)
-    private ValueAnimator gallery_save_anim;
 
     private TextToSpeech textToSpeech;
     private int audio_noise_sensitivity = -1;
-    private boolean block_startup_toast = false; // used when returning from Settings/Popup - if we're displaying a toast anyway, don't want to display the info toast too
     // for audio "noise" trigger option
     private int last_level = -1;
     private long time_quiet_loud = -1;
     private long time_last_audio_trigger_photo = -1;
     private Handler immersive_timer_handler = null;
     private Runnable immersive_timer_runnable = null;
-
-    public static String getDonateLink() {
-        return "https://play.google.com/store/apps/details?id=harman.mark.donation";
-    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -146,53 +85,12 @@ public class MainActivity extends Activity {
         if (MyDebug.LOG)
             Log.d(TAG, "onCreate: time after setting default preference values: " + (System.currentTimeMillis() - debug_time));
 
-        if (getIntent() != null && getIntent().getExtras() != null) {
-            // whether called from testing
-            is_test = getIntent().getExtras().getBoolean("test_project");
-            if (MyDebug.LOG)
-                Log.d(TAG, "is_test: " + is_test);
-        }
-        if (getIntent() != null && getIntent().getExtras() != null) {
-            // whether called from Take Photo widget
-            if (MyDebug.LOG)
-                Log.d(TAG, "take_photo?: " + getIntent().getExtras().getBoolean(TakePhoto.TAKE_PHOTO));
-        }
-        if (getIntent() != null && getIntent().getAction() != null) {
-            // invoked via the manifest shortcut?
-            if (MyDebug.LOG)
-                Log.d(TAG, "shortcut: " + getIntent().getAction());
-        }
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
 
-        // determine whether we should support "auto stabilise" feature
-        // risk of running out of memory on lower end devices, due to manipulation of large bitmaps
-        ActivityManager activityManager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
-        if (MyDebug.LOG) {
-            Log.d(TAG, "standard max memory = " + activityManager.getMemoryClass() + "MB");
-            Log.d(TAG, "large max memory = " + activityManager.getLargeMemoryClass() + "MB");
-        }
-        large_heap_memory = activityManager.getLargeMemoryClass();
-        if (large_heap_memory >= 128) {
-            supports_auto_stabilise = true;
-        }
-        if (MyDebug.LOG)
-            Log.d(TAG, "supports_auto_stabilise? " + supports_auto_stabilise);
-
-        // hack to rule out phones unlikely to have 4K video, so no point even offering the option!
-        // both S5 and Note 3 have 128MB standard and 512MB large heap (tested via Samsung RTL), as does Galaxy K Zoom
-        // also added the check for having 128MB standard heap, to support modded LG G2, which has 128MB standard, 256MB large - see https://sourceforge.net/p/opencamera/tickets/9/
-        if (activityManager.getMemoryClass() >= 128 || activityManager.getLargeMemoryClass() >= 512) {
-            supports_force_video_4k = true;
-        }
-        if (MyDebug.LOG)
-            Log.d(TAG, "supports_force_video_4k? " + supports_force_video_4k);
 
         // set up components
         mainUI = new MainUI(this);
         applicationInterface = new MyApplicationInterface(this, savedInstanceState);
-        if (MyDebug.LOG)
-            Log.d(TAG, "onCreate: time after creating application interface: " + (System.currentTimeMillis() - debug_time));
-        textFormatter = new TextFormatter(this);
 
         // determine whether we support Camera2 API
         initCamera2Support();
@@ -252,23 +150,6 @@ public class MainActivity extends Activity {
         View takePhotoButton = findViewById(R.id.take_photo);
         takePhotoButton.setVisibility(View.INVISIBLE);
 
-        // listen for orientation event change
-        orientationEventListener = new OrientationEventListener(this) {
-            @Override
-            public void onOrientationChanged(int orientation) {
-                MainActivity.this.mainUI.onOrientationChanged(orientation);
-            }
-        };
-        if (MyDebug.LOG)
-            Log.d(TAG, "onCreate: time after setting orientation event listener: " + (System.currentTimeMillis() - debug_time));
-
-        // set up gallery button long click
-        if (MyDebug.LOG)
-            Log.d(TAG, "onCreate: time after setting gallery long click listener: " + (System.currentTimeMillis() - debug_time));
-
-        if (MyDebug.LOG)
-            Log.d(TAG, "onCreate: time after creating gesture detector: " + (System.currentTimeMillis() - debug_time));
-
         // set up listener to handle immersive mode options
         View decorView = getWindow().getDecorView();
         decorView.setOnSystemUiVisibilityChangeListener
@@ -299,92 +180,8 @@ public class MainActivity extends Activity {
                         }
                     }
                 });
-        if (MyDebug.LOG)
-            Log.d(TAG, "onCreate: time after setting immersive mode listener: " + (System.currentTimeMillis() - debug_time));
 
-        // show "about" dialog for first time use; also set some per-device defaults
-        boolean has_done_first_time = sharedPreferences.contains(PreferenceKeys.FirstTimePreferenceKey);
-        if (MyDebug.LOG)
-            Log.d(TAG, "has_done_first_time: " + has_done_first_time);
-        if (!has_done_first_time) {
-            setDeviceDefaults();
-        }
-        if (!has_done_first_time) {
-            if (!is_test) {
-                AlertDialog.Builder alertDialog = new AlertDialog.Builder(this);
-                alertDialog.setTitle(R.string.app_name);
-                alertDialog.setMessage(R.string.intro_text);
-                alertDialog.setPositiveButton(android.R.string.ok, null);
-                alertDialog.setNegativeButton(R.string.preference_online_help, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        if (MyDebug.LOG)
-                            Log.d(TAG, "online help");
-                        launchOnlineHelp();
-                    }
-                });
-                alertDialog.show();
-            }
-
-            setFirstTimeFlag();
-        }
-
-        {
-            // handle What's New dialog
-            int version_code = -1;
-            try {
-                PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
-                version_code = pInfo.versionCode;
-            } catch (PackageManager.NameNotFoundException e) {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "NameNotFoundException exception trying to get version number");
-                e.printStackTrace();
-            }
-            if (version_code != -1) {
-                int latest_version = sharedPreferences.getInt(PreferenceKeys.LatestVersionPreferenceKey, 0);
-                if (MyDebug.LOG) {
-                    Log.d(TAG, "version_code: " + version_code);
-                    Log.d(TAG, "latest_version: " + latest_version);
-                }
-                final boolean whats_new_enabled = false;
-                if (whats_new_enabled) {
-                    final boolean force_whats_new = false;
-                    //final boolean force_whats_new = true; // for testing
-                    // don't show What's New if this is the first time the user has run
-                    if (has_done_first_time && (force_whats_new || version_code > latest_version)) {
-                        AlertDialog.Builder alertDialog = new AlertDialog.Builder(this);
-                        alertDialog.setTitle(R.string.whats_new);
-                        alertDialog.setMessage(R.string.whats_new_text);
-                        alertDialog.setPositiveButton(android.R.string.ok, null);
-                        alertDialog.setNegativeButton(R.string.donate, new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-                                if (MyDebug.LOG)
-                                    Log.d(TAG, "donate");
-                                Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(MainActivity.getDonateLink()));
-                                startActivity(browserIntent);
-                            }
-                        });
-                        alertDialog.show();
-                    }
-                }
-                // we set the latest_version whether or not the dialog is shown - if we showed the irst time dialog, we don't
-                // want to then show the What's New dialog next time we run!
-                SharedPreferences.Editor editor = sharedPreferences.edit();
-                editor.putInt(PreferenceKeys.LatestVersionPreferenceKey, version_code);
-                editor.apply();
-            }
-        }
-
-        // load icons
-        preloadIcons(R.array.flash_icons);
-        preloadIcons(R.array.focus_mode_icons);
-        if (MyDebug.LOG)
-            Log.d(TAG, "onCreate: time after preloading icons: " + (System.currentTimeMillis() - debug_time));
-
-
-        if (MyDebug.LOG)
-            Log.d(TAG, "onCreate: total time for Activity startup: " + (System.currentTimeMillis() - debug_time));
+        setDeviceDefaults();
     }
 
     /* This method sets the preference defaults which are set specific for a particular device.
@@ -541,8 +338,8 @@ public class MainActivity extends Activity {
      */
     public void onAudio(int level) {
         boolean audio_trigger = false;
-		/*if( level > 150 ) {
-			if( MyDebug.LOG )
+        /*if( level > 150 ) {
+            if( MyDebug.LOG )
 				Log.d(TAG, "loud noise!: " + level);
 			audio_trigger = true;
 		}*/
@@ -656,14 +453,6 @@ public class MainActivity extends Activity {
         // Note that we do it here rather than customising the theme's android:windowBackground, so this doesn't affect other views - in particular, the MyPreferenceFragment settings
         getWindow().getDecorView().getRootView().setBackgroundColor(Color.BLACK);
 
-        mSensorManager.registerListener(accelerometerListener, mSensorAccelerometer, SensorManager.SENSOR_DELAY_NORMAL);
-        mSensorManager.registerListener(magneticListener, mSensorMagnetic, SensorManager.SENSOR_DELAY_NORMAL);
-        orientationEventListener.enable();
-
-        mainUI.layoutUI();
-
-        updateGalleryIcon(); // update in case images deleted whilst idle
-
         preview.onResume();
 
         if (MyDebug.LOG) {
@@ -691,12 +480,8 @@ public class MainActivity extends Activity {
             Log.d(TAG, "onPause");
             debug_time = System.currentTimeMillis();
         }
-//		waitUntilImageQueueEmpty(); // so we don't risk losing any images
         super.onPause(); // docs say to call this before freeing other things
-//        mainUI.destroyPopup(); // important as user could change/reset settings from Android settings when pausing
-        mSensorManager.unregisterListener(accelerometerListener);
-        mSensorManager.unregisterListener(magneticListener);
-        orientationEventListener.disable();
+
         preview.onPause();
         if (MyDebug.LOG) {
             Log.d(TAG, "onPause: total time to pause: " + (System.currentTimeMillis() - debug_time));
@@ -764,31 +549,12 @@ public class MainActivity extends Activity {
         }
     }
 
-    public void clickedSwitchVideo(View view) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "clickedSwitchVideo");
-//		this.closePopup();
-//		mainUI.destroyPopup(); // important as we don't want to use a cached popup, as we can show different options depending on whether we're in photo or video mode
-        View switchVideoButton = findViewById(R.id.switch_video);
-        switchVideoButton.setEnabled(false); // prevent slowdown if user repeatedly clicks
-        this.preview.switchVideo(false, true);
-        switchVideoButton.setEnabled(true);
-
-        mainUI.setTakePhotoIcon();
-//	    mainUI.setPopupIcon(); // needed as turning to video mode or back can turn flash mode off or back on
-        if (!block_startup_toast) {
-            this.showPhotoVideoToast(true);
-        }
-    }
-
 
     @Override
     public void onBackPressed() {
         if (MyDebug.LOG)
             Log.d(TAG, "close settings");
         setWindowFlagsForCamera();
-
-        preferencesListener.stopListening();
         super.onBackPressed();
     }
 
@@ -955,270 +721,6 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Use this is place of simply alert.show(), if the orientation has just been set to allow
-     * rotation via setWindowFlagsForSettings(). On some devices (e.g., OnePlus 3T with Android 8),
-     * the dialog doesn't show properly if the phone is held in portrait. A workaround seems to be
-     * to use postDelayed. Note that postOnAnimation() doesn't work.
-     */
-    public void showAlert(final AlertDialog alert) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "showAlert");
-        Handler handler = new Handler();
-        handler.postDelayed(new Runnable() {
-            public void run() {
-                alert.show();
-            }
-        }, 20);
-        // note that 1ms usually fixes the problem, but not always; 10ms seems fine, have set 20ms
-        // just in case
-    }
-
-    public void showPreview(boolean show) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "showPreview: " + show);
-        final ViewGroup container = (ViewGroup) findViewById(R.id.hide_container);
-        container.setVisibility(show ? View.GONE : View.VISIBLE);
-    }
-
-    /**
-     * Shows the default "blank" gallery icon, when we don't have a thumbnail available.
-     */
-    private void updateGalleryIconToBlank() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "updateGalleryIconToBlank");
-        ImageButton galleryButton = (ImageButton) this.findViewById(R.id.gallery);
-        int bottom = galleryButton.getPaddingBottom();
-        int top = galleryButton.getPaddingTop();
-        int right = galleryButton.getPaddingRight();
-        int left = galleryButton.getPaddingLeft();
-	    /*if( MyDebug.LOG )
-			Log.d(TAG, "padding: " + bottom);*/
-        galleryButton.setImageBitmap(null);
-        galleryButton.setImageResource(R.drawable.gallery);
-        // workaround for setImageResource also resetting padding, Android bug
-        galleryButton.setPadding(left, top, right, bottom);
-        gallery_bitmap = null;
-    }
-
-    /**
-     * Shows a thumbnail for the gallery icon.
-     */
-    void updateGalleryIcon(Bitmap thumbnail) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "updateGalleryIcon: " + thumbnail);
-        ImageButton galleryButton = (ImageButton) this.findViewById(R.id.gallery);
-        galleryButton.setImageBitmap(thumbnail);
-        gallery_bitmap = thumbnail;
-    }
-
-    /**
-     * Updates the gallery icon by searching for the most recent photo.
-     * Launches the task in a separate thread.
-     */
-    public void updateGalleryIcon() {
-        long debug_time = 0;
-        if (MyDebug.LOG) {
-            Log.d(TAG, "updateGalleryIcon");
-            debug_time = System.currentTimeMillis();
-        }
-
-        new AsyncTask<Void, Void, Bitmap>() {
-            private static final String TAG = "MainActivity/AsyncTask";
-
-            /** The system calls this to perform work in a worker thread and
-             * delivers it the parameters given to AsyncTask.execute() */
-            protected Bitmap doInBackground(Void... params) {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "doInBackground");
-                StorageUtils.Media media = applicationInterface.getStorageUtils().getLatestMedia();
-                Bitmap thumbnail = null;
-                KeyguardManager keyguard_manager = (KeyguardManager) MainActivity.this.getSystemService(Context.KEYGUARD_SERVICE);
-                boolean is_locked = keyguard_manager != null && keyguard_manager.inKeyguardRestrictedInputMode();
-                if (MyDebug.LOG)
-                    Log.d(TAG, "is_locked?: " + is_locked);
-                if (media != null && getContentResolver() != null && !is_locked) {
-                    // check for getContentResolver() != null, as have had reported Google Play crashes
-                    try {
-                        if (media.video) {
-                            thumbnail = MediaStore.Video.Thumbnails.getThumbnail(getContentResolver(), media.id, MediaStore.Video.Thumbnails.MINI_KIND, null);
-                        } else {
-                            thumbnail = MediaStore.Images.Thumbnails.getThumbnail(getContentResolver(), media.id, MediaStore.Images.Thumbnails.MINI_KIND, null);
-                        }
-                    } catch (Throwable exception) {
-                        // have had Google Play NoClassDefFoundError crashes from new ExifInterface() for Galaxy Ace4 (vivalto3g), Galaxy S Duos3 (vivalto3gvn)
-                        // also NegativeArraySizeException - best to catch everything
-                        if (MyDebug.LOG)
-                            Log.e(TAG, "exif orientation exception");
-                        exception.printStackTrace();
-                    }
-                    if (thumbnail != null) {
-                        if (media.orientation != 0) {
-                            if (MyDebug.LOG)
-                                Log.d(TAG, "thumbnail size is " + thumbnail.getWidth() + " x " + thumbnail.getHeight());
-                            Matrix matrix = new Matrix();
-                            matrix.setRotate(media.orientation, thumbnail.getWidth() * 0.5f, thumbnail.getHeight() * 0.5f);
-                            try {
-                                Bitmap rotated_thumbnail = Bitmap.createBitmap(thumbnail, 0, 0, thumbnail.getWidth(), thumbnail.getHeight(), matrix, true);
-                                // careful, as rotated_thumbnail is sometimes not a copy!
-                                if (rotated_thumbnail != thumbnail) {
-                                    thumbnail.recycle();
-                                    thumbnail = rotated_thumbnail;
-                                }
-                            } catch (Throwable t) {
-                                if (MyDebug.LOG)
-                                    Log.d(TAG, "failed to rotate thumbnail");
-                            }
-                        }
-                    }
-                }
-                return thumbnail;
-            }
-
-            /** The system calls this to perform work in the UI thread and delivers
-             * the result from doInBackground() */
-            protected void onPostExecute(Bitmap thumbnail) {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "onPostExecute");
-                // since we're now setting the thumbnail to the latest media on disk, we need to make sure clicking the Gallery goes to this
-                applicationInterface.getStorageUtils().clearLastMediaScanned();
-                if (thumbnail != null) {
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "set gallery button to thumbnail");
-                    updateGalleryIcon(thumbnail);
-                } else {
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "set gallery button to blank");
-                    updateGalleryIconToBlank();
-                }
-            }
-        }.execute();
-
-        if (MyDebug.LOG)
-            Log.d(TAG, "updateGalleryIcon: total time to update gallery icon: " + (System.currentTimeMillis() - debug_time));
-    }
-
-    void savingImage(final boolean started) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "savingImage: " + started);
-
-        this.runOnUiThread(new Runnable() {
-            public void run() {
-                final ImageButton galleryButton = (ImageButton) findViewById(R.id.gallery);
-                if (started) {
-                    //galleryButton.setColorFilter(0x80ffffff, PorterDuff.Mode.MULTIPLY);
-                    if (gallery_save_anim == null) {
-                        gallery_save_anim = ValueAnimator.ofInt(Color.argb(200, 255, 255, 255), Color.argb(63, 255, 255, 255));
-                        gallery_save_anim.setEvaluator(new ArgbEvaluator());
-                        gallery_save_anim.setRepeatCount(ValueAnimator.INFINITE);
-                        gallery_save_anim.setRepeatMode(ValueAnimator.REVERSE);
-                        gallery_save_anim.setDuration(500);
-                    }
-                    gallery_save_anim.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-                        @Override
-                        public void onAnimationUpdate(ValueAnimator animation) {
-                            galleryButton.setColorFilter((Integer) animation.getAnimatedValue(), PorterDuff.Mode.MULTIPLY);
-                        }
-                    });
-                    gallery_save_anim.start();
-                } else if (gallery_save_anim != null) {
-                    gallery_save_anim.cancel();
-                }
-                galleryButton.setColorFilter(null);
-            }
-        });
-    }
-
-    public void clickedGallery(View view) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "clickedGallery");
-        openGallery();
-    }
-
-    private void openGallery() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "openGallery");
-        //Intent intent = new Intent(Intent.ACTION_VIEW, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-        Uri uri = applicationInterface.getStorageUtils().getLastMediaScanned();
-        if (uri == null) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "go to latest media");
-            StorageUtils.Media media = applicationInterface.getStorageUtils().getLatestMedia();
-            if (media != null) {
-                uri = media.uri;
-            }
-        }
-
-        if (uri != null) {
-            // check uri exists
-            if (MyDebug.LOG)
-                Log.d(TAG, "found most recent uri: " + uri);
-            try {
-                ContentResolver cr = getContentResolver();
-                ParcelFileDescriptor pfd = cr.openFileDescriptor(uri, "r");
-                if (pfd == null) {
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "uri no longer exists (1): " + uri);
-                    uri = null;
-                } else {
-                    pfd.close();
-                }
-            } catch (IOException e) {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "uri no longer exists (2): " + uri);
-                uri = null;
-            }
-        }
-        if (uri == null) {
-            uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
-        }
-        if (!is_test) {
-            // don't do if testing, as unclear how to exit activity to finish test (for testGallery())
-            if (MyDebug.LOG)
-                Log.d(TAG, "launch uri:" + uri);
-            final String REVIEW_ACTION = "com.android.camera.action.REVIEW";
-            try {
-                // REVIEW_ACTION means we can view video files without autoplaying
-                Intent intent = new Intent(REVIEW_ACTION, uri);
-                this.startActivity(intent);
-            } catch (ActivityNotFoundException e) {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "REVIEW_ACTION intent didn't work, try ACTION_VIEW");
-                Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-                // from http://stackoverflow.com/questions/11073832/no-activity-found-to-handle-intent - needed to fix crash if no gallery app installed
-                //Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("blah")); // test
-                if (intent.resolveActivity(getPackageManager()) != null) {
-                    try {
-                        this.startActivity(intent);
-                    } catch (SecurityException e2) {
-                        // have received this crash from Google Play - don't display a toast, simply do nothing
-                        Log.e(TAG, "SecurityException from ACTION_VIEW startActivity");
-                        e2.printStackTrace();
-                    }
-                } else {
-                    preview.showToast(null, R.string.no_gallery_app);
-                }
-            }
-        }
-    }
-
-    /**
-     * Opens the Storage Access Framework dialog to select a folder.
-     *
-     * @param from_preferences Whether called from the Preferences
-     */
-    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-    void openFolderChooserDialogSAF(boolean from_preferences) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "openFolderChooserDialogSAF: " + from_preferences);
-        this.saf_dialog_from_preferences = from_preferences;
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-        //Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        //intent.addCategory(Intent.CATEGORY_OPENABLE);
-        startActivityForResult(intent, 42);
-    }
-
-
-    /**
      * Listens for the response from the Storage Access Framework dialog to select a folder
      * (as opened with openFolderChooserDialogSAF()).
      */
@@ -1235,75 +737,8 @@ public class MainActivity extends Activity {
                 final int takeFlags = resultData.getFlags()
                         & (Intent.FLAG_GRANT_READ_URI_PERMISSION
                         | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-                try {
-					/*if( true )
-						throw new SecurityException(); // test*/
-                    // Check for the freshest data.
-                    getContentResolver().takePersistableUriPermission(treeUri, takeFlags);
 
-                    SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-                    SharedPreferences.Editor editor = sharedPreferences.edit();
-                    editor.putString(PreferenceKeys.getSaveLocationSAFPreferenceKey(), treeUri.toString());
-                    editor.apply();
-
-
-                    File file = applicationInterface.getStorageUtils().getImageFolder();
-                    if (file != null) {
-                        preview.showToast(null, getResources().getString(R.string.changed_save_location) + "\n" + file.getAbsolutePath());
-                    }
-                } catch (SecurityException e) {
-                    Log.e(TAG, "SecurityException failed to take permission");
-                    e.printStackTrace();
-                    // failed - if the user had yet to set a save location, make sure we switch SAF back off
-                    SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-                    String uri = sharedPreferences.getString(PreferenceKeys.getSaveLocationSAFPreferenceKey(), "");
-                    if (uri.length() == 0) {
-                        if (MyDebug.LOG)
-                            Log.d(TAG, "no SAF save location was set");
-                        SharedPreferences.Editor editor = sharedPreferences.edit();
-                        editor.putBoolean(PreferenceKeys.getUsingSAFPreferenceKey(), false);
-                        editor.apply();
-                        preview.showToast(null, R.string.saf_permission_failed);
-                    }
-                }
-            } else {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "SAF dialog cancelled");
-                // cancelled - if the user had yet to set a save location, make sure we switch SAF back off
-                SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-                String uri = sharedPreferences.getString(PreferenceKeys.getSaveLocationSAFPreferenceKey(), "");
-                if (uri.length() == 0) {
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "no SAF save location was set");
-                    SharedPreferences.Editor editor = sharedPreferences.edit();
-                    editor.putBoolean(PreferenceKeys.getUsingSAFPreferenceKey(), false);
-                    editor.apply();
-                    preview.showToast(null, R.string.saf_cancelled);
-                }
-            }
-
-            if (!saf_dialog_from_preferences) {
-                setWindowFlagsForCamera();
-                showPreview(true);
-            }
-        }
-    }
-
-    void updateSaveFolder(String new_save_location) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "updateSaveFolder: " + new_save_location);
-        if (new_save_location != null) {
-            SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-            String orig_save_location = this.applicationInterface.getStorageUtils().getSaveLocation();
-
-            if (!orig_save_location.equals(new_save_location)) {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "changed save_folder to: " + this.applicationInterface.getStorageUtils().getSaveLocation());
-                SharedPreferences.Editor editor = sharedPreferences.edit();
-                editor.putString(PreferenceKeys.getSaveLocationPreferenceKey(), new_save_location);
-                editor.apply();
-
-                this.preview.showToast(null, getResources().getString(R.string.changed_save_location) + "\n" + this.applicationInterface.getStorageUtils().getSaveLocation());
+                getContentResolver().takePersistableUriPermission(treeUri, takeFlags);
             }
         }
     }
@@ -1320,18 +755,6 @@ public class MainActivity extends Activity {
         if (MyDebug.LOG)
             Log.d(TAG, "takePicture");
 
-        this.takePicturePressed(photo_snapshot);
-    }
-
-    /**
-     * @param photo_snapshot If true, then the user has requested taking a photo whilst video
-     *                       recording. If false, either take a photo or start/stop video depending
-     *                       on the current mode.
-     */
-    void takePicturePressed(boolean photo_snapshot) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "takePicturePressed");
-
         this.preview.takePicturePressed(photo_snapshot);
     }
 
@@ -1340,9 +763,6 @@ public class MainActivity extends Activity {
         if (MyDebug.LOG)
             Log.d(TAG, "onSaveInstanceState");
         super.onSaveInstanceState(state);
-        if (this.preview != null) {
-            preview.onSaveInstanceState(state);
-        }
         if (this.applicationInterface != null) {
             applicationInterface.onSaveInstanceState(state);
         }
@@ -1353,20 +773,6 @@ public class MainActivity extends Activity {
         if (MyDebug.LOG) {
             Log.d(TAG, "cameraSetup");
             debug_time = System.currentTimeMillis();
-        }
-        if (this.supportsForceVideo4K() && preview.usingCamera2API()) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "using Camera2 API, so can disable the force 4K option");
-            this.disableForceVideo4K();
-        }
-        if (this.supportsForceVideo4K() && preview.getVideoQualityHander().getSupportedVideoSizes() != null) {
-            for (CameraController.Size size : preview.getVideoQualityHander().getSupportedVideoSizes()) {
-                if (size.width >= 3840 && size.height >= 2160) {
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "camera natively supports 4K, so can disable the force option");
-                    this.disableForceVideo4K();
-                }
-            }
         }
         if (MyDebug.LOG)
             Log.d(TAG, "cameraSetup: time after handling Force 4K option: " + (System.currentTimeMillis() - debug_time));
@@ -1386,28 +792,12 @@ public class MainActivity extends Activity {
         if (MyDebug.LOG)
             Log.d(TAG, "cameraSetup: time after setting take photo icon: " + (System.currentTimeMillis() - debug_time));
 
-        if (!block_startup_toast) {
-            this.showPhotoVideoToast(false);
-        }
-        block_startup_toast = false;
         if (MyDebug.LOG)
             Log.d(TAG, "cameraSetup: total time for cameraSetup: " + (System.currentTimeMillis() - debug_time));
     }
 
-    public boolean supportsAutoStabilise() {
-        return this.supports_auto_stabilise;
-    }
-
-    public boolean supportsForceVideo4K() {
-        return this.supports_force_video_4k;
-    }
-
     public boolean supportsCamera2() {
         return this.supports_camera2;
-    }
-
-    private void disableForceVideo4K() {
-        this.supports_force_video_4k = false;
     }
 
     /**
@@ -1458,224 +848,20 @@ public class MainActivity extends Activity {
         return this.mainUI;
     }
 
-    public MyApplicationInterface getApplicationInterface() {
-        return this.applicationInterface;
-    }
-
-    public TextFormatter getTextFormatter() {
-        return this.textFormatter;
-    }
-
-    public StorageUtils getStorageUtils() {
-        return this.applicationInterface.getStorageUtils();
-    }
-
-    /**
-     * Displays a toast with information about the current preferences.
-     * If always_show is true, the toast is always displayed; otherwise, we only display
-     * a toast if it's important to notify the user (i.e., unusual non-default settings are
-     * set). We want a balance between not pestering the user too much, whilst also reminding
-     * them if certain settings are on.
-     */
-    private void showPhotoVideoToast(boolean always_show) {
-        if (MyDebug.LOG) {
-            Log.d(TAG, "showPhotoVideoToast");
-            Log.d(TAG, "always_show? " + always_show);
-        }
-        CameraController camera_controller = preview.getCameraController();
-        if (camera_controller == null || this.camera_in_background) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "camera not open or in background");
-            return;
-        }
-        String toast_string;
-        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-        boolean simple = true;
-        if (preview.isVideo()) {
-            VideoProfile profile = preview.getVideoProfile();
-            String bitrate_string;
-            if (profile.videoBitRate >= 10000000)
-                bitrate_string = profile.videoBitRate / 1000000 + "Mbps";
-            else if (profile.videoBitRate >= 10000)
-                bitrate_string = profile.videoBitRate / 1000 + "Kbps";
-            else
-                bitrate_string = profile.videoBitRate + "bps";
-
-            toast_string = getResources().getString(R.string.video) + ": " + profile.videoFrameWidth + "x" + profile.videoFrameHeight + ", " + profile.videoFrameRate + "fps, " + bitrate_string;
-            boolean record_audio = sharedPreferences.getBoolean(PreferenceKeys.getRecordAudioPreferenceKey(), true);
-            if (!record_audio) {
-                toast_string += "\n" + getResources().getString(R.string.audio_disabled);
-                simple = false;
-            }
-            String max_duration_value = sharedPreferences.getString(PreferenceKeys.getVideoMaxDurationPreferenceKey(), "0");
-            if (max_duration_value.length() > 0 && !max_duration_value.equals("0")) {
-                String[] entries_array = getResources().getStringArray(R.array.preference_video_max_duration_entries);
-                String[] values_array = getResources().getStringArray(R.array.preference_video_max_duration_values);
-                int index = Arrays.asList(values_array).indexOf(max_duration_value);
-                if (index != -1) { // just in case!
-                    String entry = entries_array[index];
-                    toast_string += "\n" + getResources().getString(R.string.max_duration) + ": " + entry;
-                    simple = false;
-                }
-            }
-            long max_filesize = applicationInterface.getVideoMaxFileSizeUserPref();
-            if (max_filesize != 0) {
-                long max_filesize_mb = max_filesize / (1024 * 1024);
-                toast_string += "\n" + getResources().getString(R.string.max_filesize) + ": " + max_filesize_mb + getResources().getString(R.string.mb_abbreviation);
-                simple = false;
-            }
-            if (sharedPreferences.getBoolean(PreferenceKeys.getVideoFlashPreferenceKey(), false) && preview.supportsFlash()) {
-                toast_string += "\n" + getResources().getString(R.string.preference_video_flash);
-                simple = false;
-            }
-        } else {
-            toast_string = getResources().getString(R.string.photo);
-            CameraController.Size current_size = preview.getCurrentPictureSize();
-            toast_string += " " + current_size.width + "x" + current_size.height;
-            if (preview.supportsFocus() && preview.getSupportedFocusValues().size() > 1) {
-                String focus_value = preview.getCurrentFocusValue();
-                if (focus_value != null && !focus_value.equals("focus_mode_auto") && !focus_value.equals("focus_mode_continuous_picture")) {
-                    String focus_entry = preview.findFocusEntryForValue(focus_value);
-                    if (focus_entry != null) {
-                        toast_string += "\n" + focus_entry;
-                    }
-                }
-            }
-            if (sharedPreferences.getBoolean(PreferenceKeys.AutoStabilisePreferenceKey, false)) {
-                // important as users are sometimes confused at the behaviour if they don't realise the option is on
-                toast_string += "\n" + getResources().getString(R.string.preference_auto_stabilise);
-                simple = false;
-            }
-        }
-        if (applicationInterface.getFaceDetectionPref()) {
-            // important so that the user realises why touching for focus/metering areas won't work - easy to forget that face detection has been turned on!
-            toast_string += "\n" + getResources().getString(R.string.preference_face_detection);
-            simple = false;
-        }
-        int current_exposure = camera_controller.getExposureCompensation();
-        if (current_exposure != 0) {
-            toast_string += "\n" + preview.getExposureCompensationString(current_exposure);
-            simple = false;
-        }
-        String scene_mode = camera_controller.getSceneMode();
-        if (scene_mode != null && !scene_mode.equals(camera_controller.getDefaultSceneMode())) {
-            toast_string += "\n" + getResources().getString(R.string.scene_mode) + ": " + mainUI.getEntryForSceneMode(scene_mode);
-            simple = false;
-        }
-        String white_balance = camera_controller.getWhiteBalance();
-        if (white_balance != null && !white_balance.equals(camera_controller.getDefaultWhiteBalance())) {
-            toast_string += "\n" + getResources().getString(R.string.white_balance) + ": " + mainUI.getEntryForWhiteBalance(white_balance);
-            if (white_balance.equals("manual") && preview.supportsWhiteBalanceTemperature()) {
-                toast_string += " " + camera_controller.getWhiteBalanceTemperature();
-            }
-            simple = false;
-        }
-        String color_effect = camera_controller.getColorEffect();
-        if (color_effect != null && !color_effect.equals(camera_controller.getDefaultColorEffect())) {
-            toast_string += "\n" + getResources().getString(R.string.color_effect) + ": " + mainUI.getEntryForColorEffect(color_effect);
-            simple = false;
-        }
-        String lock_orientation = sharedPreferences.getString(PreferenceKeys.getLockOrientationPreferenceKey(), "none");
-        if (!lock_orientation.equals("none")) {
-            String[] entries_array = getResources().getStringArray(R.array.preference_lock_orientation_entries);
-            String[] values_array = getResources().getStringArray(R.array.preference_lock_orientation_values);
-            int index = Arrays.asList(values_array).indexOf(lock_orientation);
-            if (index != -1) { // just in case!
-                String entry = entries_array[index];
-                toast_string += "\n" + entry;
-                simple = false;
-            }
-        }
-        String timer = sharedPreferences.getString(PreferenceKeys.getTimerPreferenceKey(), "0");
-        if (!timer.equals("0")) {
-            String[] entries_array = getResources().getStringArray(R.array.preference_timer_entries);
-            String[] values_array = getResources().getStringArray(R.array.preference_timer_values);
-            int index = Arrays.asList(values_array).indexOf(timer);
-            if (index != -1) { // just in case!
-                String entry = entries_array[index];
-                toast_string += "\n" + getResources().getString(R.string.preference_timer) + ": " + entry;
-                simple = false;
-            }
-        }
-        String repeat = applicationInterface.getRepeatPref();
-        if (!repeat.equals("1")) {
-            String[] entries_array = getResources().getStringArray(R.array.preference_burst_mode_entries);
-            String[] values_array = getResources().getStringArray(R.array.preference_burst_mode_values);
-            int index = Arrays.asList(values_array).indexOf(repeat);
-            if (index != -1) { // just in case!
-                String entry = entries_array[index];
-                toast_string += "\n" + getResources().getString(R.string.preference_burst_mode) + ": " + entry;
-                simple = false;
-            }
-        }
-
-        if (MyDebug.LOG) {
-            Log.d(TAG, "toast_string: " + toast_string);
-            Log.d(TAG, "simple?: " + simple);
-        }
-        if (!simple || always_show)
-            preview.showToast(switch_video_toast, toast_string);
-    }
-
-
     /**
      * Show a "rationale" to the user for needing a particular permission, then request that permission again
      * once they close the dialog.
      */
-    @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
     private void showRequestPermissionRationale(final int permission_code) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "showRequestPermissionRational: " + permission_code);
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            if (MyDebug.LOG)
-                Log.e(TAG, "shouldn't be requesting permissions for pre-Android M!");
-            return;
-        }
-
-        boolean ok = true;
         String[] permissions = null;
-        int message_id = 0;
         if (permission_code == MY_PERMISSIONS_REQUEST_CAMERA) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "display rationale for camera permission");
             permissions = new String[]{Manifest.permission.CAMERA};
-            message_id = R.string.permission_rationale_camera;
         } else if (permission_code == MY_PERMISSIONS_REQUEST_STORAGE) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "display rationale for storage permission");
             permissions = new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE};
-            message_id = R.string.permission_rationale_storage;
         } else if (permission_code == MY_PERMISSIONS_REQUEST_RECORD_AUDIO) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "display rationale for record audio permission");
             permissions = new String[]{Manifest.permission.RECORD_AUDIO};
-            message_id = R.string.permission_rationale_record_audio;
-        } else if (permission_code == MY_PERMISSIONS_REQUEST_LOCATION) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "display rationale for location permission");
-            permissions = new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION};
-            message_id = R.string.permission_rationale_location;
-        } else {
-            if (MyDebug.LOG)
-                Log.e(TAG, "showRequestPermissionRational unknown permission_code: " + permission_code);
-            ok = false;
         }
-
-        if (ok) {
-            final String[] permissions_f = permissions;
-            new AlertDialog.Builder(this)
-                    .setTitle(R.string.permission_rationale_title)
-                    .setMessage(message_id)
-                    .setIcon(android.R.drawable.ic_dialog_alert)
-                    .setPositiveButton(android.R.string.ok, null)
-                    .setOnDismissListener(new OnDismissListener() {
-                        public void onDismiss(DialogInterface dialog) {
-                            if (MyDebug.LOG)
-                                Log.d(TAG, "requesting permission...");
-                            ActivityCompat.requestPermissions(MainActivity.this, permissions_f, permission_code);
-                        }
-                    }).show();
-        }
+        ActivityCompat.requestPermissions(MainActivity.this, permissions, permission_code);
     }
 
     void requestCameraPermission() {
@@ -1741,29 +927,6 @@ public class MainActivity extends Activity {
             if (MyDebug.LOG)
                 Log.d(TAG, "requesting record audio permission...");
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, MY_PERMISSIONS_REQUEST_RECORD_AUDIO);
-        }
-    }
-
-    private void requestLocationPermission() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "requestLocationPermission");
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            if (MyDebug.LOG)
-                Log.e(TAG, "shouldn't be requesting permissions for pre-Android M!");
-            return;
-        }
-
-        if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION) ||
-                ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_COARSE_LOCATION)) {
-            // Show an explanation to the user *asynchronously* -- don't block
-            // this thread waiting for the user's response! After the user
-            // sees the explanation, try again to request the permission.
-            showRequestPermissionRationale(MY_PERMISSIONS_REQUEST_LOCATION);
-        } else {
-            // Can go ahead and request the permission
-            if (MyDebug.LOG)
-                Log.d(TAG, "requesting loacation permissions...");
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, MY_PERMISSIONS_REQUEST_LOCATION);
         }
     }
 
@@ -1837,120 +1000,6 @@ public class MainActivity extends Activity {
                 if (MyDebug.LOG)
                     Log.e(TAG, "unknown requestCode " + requestCode);
             }
-        }
-    }
-
-
-    public static class MyFolderChooserDialog extends FolderChooserDialog {
-        @Override
-        public void onDismiss(DialogInterface dialog) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "FolderChooserDialog dismissed");
-            // n.b., fragments have to be static (as they might be inserted into a new Activity - see http://stackoverflow.com/questions/15571010/fragment-inner-class-should-be-static),
-            // so we access the MainActivity via the fragment's getActivity().
-            MainActivity main_activity = (MainActivity) this.getActivity();
-            main_activity.setWindowFlagsForCamera();
-            main_activity.showPreview(true);
-            String new_save_location = this.getChosenFolder();
-            main_activity.updateSaveFolder(new_save_location);
-            super.onDismiss(dialog);
-        }
-    }
-
-    /**
-     * Keeps track of changes to SharedPreferences.
-     */
-    class PreferencesListener implements SharedPreferences.OnSharedPreferenceChangeListener {
-        private static final String TAG = "PreferencesListener";
-
-        private boolean any; // whether any changes that require update have been made since startListening()
-
-        void startListening() {
-            if (MyDebug.LOG)
-                Log.d(TAG, "startListening");
-            any = false;
-
-            SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
-            // n.b., registerOnSharedPreferenceChangeListener warns that we must keep a reference to the listener (which
-            // is this class) as long as we want to listen for changes, otherwise the listener may be garbage collected!
-            sharedPreferences.registerOnSharedPreferenceChangeListener(this);
-        }
-
-        void stopListening() {
-            if (MyDebug.LOG)
-                Log.d(TAG, "stopListening");
-            SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
-            sharedPreferences.unregisterOnSharedPreferenceChangeListener(this);
-        }
-
-        @Override
-        public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "onSharedPreferenceChanged: " + key);
-            switch (key) {
-                // we whitelist preferences where we're sure that we don't need to call updateForSettings() if they've changed
-                case "preference_timer":
-                case "preference_touch_capture":
-                case "preference_pause_preview":
-                case "preference_shutter_sound":
-                case "preference_timer_beep":
-                case "preference_timer_speak":
-                case "preference_volume_keys":
-                case "preference_audio_noise_control_sensitivity":
-                case "preference_using_saf":
-                case "preference_save_photo_prefix":
-                case "preference_save_video_prefix":
-                case "preference_save_zulu_time":
-                case "preference_show_when_locked":
-                case "preference_startup_focus":
-                case "preference_show_zoom":
-                case "preference_show_angle":
-                case "preference_show_angle_line":
-                case "preference_show_pitch_lines":
-                case "preference_angle_highlight_color":
-                case "preference_show_geo_direction":
-                case "preference_show_geo_direction_lines":
-                case "preference_show_battery":
-                case "preference_show_time":
-                case "preference_free_memory":
-                case "preference_show_iso":
-                case "preference_grid":
-                case "preference_crop_guide":
-                case "preference_show_toasts":
-                case "preference_thumbnail_animation":
-                case "preference_take_photo_border":
-                case "preference_keep_display_on":
-                case "preference_max_brightness":
-                case "preference_hdr_save_expo":
-                case "preference_front_camera_mirror":
-                case "preference_stamp":
-                case "preference_stamp_dateformat":
-                case "preference_stamp_timeformat":
-                case "preference_stamp_gpsformat":
-                case "preference_textstamp":
-                case "preference_stamp_fontsize":
-                case "preference_stamp_font_color":
-                case "preference_stamp_style":
-                case "preference_background_photo_saving":
-                case "preference_record_audio":
-                case "preference_record_audio_src":
-                case "preference_record_audio_channels":
-                case "preference_lock_video":
-                case "preference_video_subtitle":
-                case "preference_require_location":
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "this change doesn't require update");
-                    break;
-                default:
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "this change does require update");
-                    any = true;
-                    break;
-            }
-        }
-
-        boolean anyChanges() {
-            return any;
         }
     }
 

@@ -18,7 +18,6 @@
         android:padding="10dp"
         android:scaleType="fitCenter"
         android:contentDescription="@string/take_photo"
-        android:src="@drawable/take_photo_selector"
         android:onClick="clickedTakePhoto"
         android:layout_centerVertical="true"
 		android:background="@null"
@@ -50,66 +49,4 @@
         android:background="@null"
         android:visibility="gone"
         />
-
-    <ImageButton
-        android:id="@+id/switch_video"
-        android:layout_width="60dp"
-        android:layout_height="60dp"
-        android:padding="10dp"
-        android:scaleType="fitCenter"
-        android:contentDescription="@string/switch_to_video"
-        android:src="@drawable/take_video"
-        android:alpha="0.5"
-        android:onClick="clickedSwitchVideo"
-        android:layout_below="@+id/take_photo"
-        android:background="@null"
-        />
-    
-    <Button
-        android:id="@+id/gui_anchor"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:padding="1dp"
-        android:scaleType="fitCenter"
-        android:visibility="invisible"
-        />
-
-    <ImageButton
-        android:id="@+id/gallery"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:padding="8dp"
-        android:scaleType="fitCenter"
-        android:contentDescription="@string/gallery"
-        android:src="@drawable/gallery"
-        android:onClick="clickedGallery"
-        />
-
-    <!-- should be at left-most -->
-    <ImageButton
-        android:id="@+id/trash"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:padding="10dp"
-        android:scaleType="fitCenter"
-        android:contentDescription="@string/trash"
-        android:src="@drawable/trash"
-        android:onClick="clickedTrash"
-        android:visibility="gone"
-        />
-
-    <FrameLayout
-        android:id="@+id/locker"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        />
-
-    <ScrollView
-        android:id="@+id/hide_container"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@android:color/black"
-        android:visibility="gone"
-        />
-
 </RelativeLayout>
