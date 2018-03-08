@@ -3,7 +3,6 @@ package net.sourceforge.opencamera;
 import android.Manifest;
 import android.animation.ArgbEvaluator;
 import android.animation.ValueAnimator;
-import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.ActivityManager;
@@ -29,8 +28,6 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.media.AudioAttributes;
-import android.media.AudioManager;
 import android.media.SoundPool;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -42,19 +39,14 @@ import android.os.StatFs;
 import android.preference.PreferenceManager;
 import android.provider.MediaStore;
 import android.renderscript.RenderScript;
-import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.util.Log;
 import android.util.SparseIntArray;
-import android.view.GestureDetector;
-import android.view.GestureDetector.SimpleOnGestureListener;
 import android.view.Menu;
-import android.view.MotionEvent;
 import android.view.OrientationEventListener;
 import android.view.View;
-import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.ImageButton;
@@ -70,7 +62,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Hashtable;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -80,20 +71,10 @@ import java.util.Map;
 public class MainActivity extends Activity {
     private static final String TAG = "MainActivity";
     // application shortcuts:
-    static private final String ACTION_SHORTCUT_CAMERA = "net.sourceforge.opencamera.SHORTCUT_CAMERA";
-    static private final String ACTION_SHORTCUT_SELFIE = "net.sourceforge.opencamera.SHORTCUT_SELFIE";
-    static private final String ACTION_SHORTCUT_VIDEO = "net.sourceforge.opencamera.SHORTCUT_VIDEO";
-    static private final String ACTION_SHORTCUT_GALLERY = "net.sourceforge.opencamera.SHORTCUT_GALLERY";
-    static private final String ACTION_SHORTCUT_SETTINGS = "net.sourceforge.opencamera.SHORTCUT_SETTINGS";
     private final Map<Integer, Bitmap> preloaded_bitmap_resources = new Hashtable<>();
     private final ToastBoxer switch_video_toast = new ToastBoxer();
     private final ToastBoxer screen_locked_toast = new ToastBoxer();
-    private final ToastBoxer changed_auto_stabilise_toast = new ToastBoxer();
-    private final ToastBoxer exposure_lock_toast = new ToastBoxer();
-    private final ToastBoxer audio_control_toast = new ToastBoxer();
-    private final int manual_n = 1000; // the number of values on the seekbar used for manual focus distance, ISO or exposure speed
     private final PreferencesListener preferencesListener = new PreferencesListener();
-    private final boolean test_panorama = false;
     final private int MY_PERMISSIONS_REQUEST_CAMERA = 0;
     final private int MY_PERMISSIONS_REQUEST_STORAGE = 1;
     final private int MY_PERMISSIONS_REQUEST_RECORD_AUDIO = 2;
@@ -101,9 +82,6 @@ public class MainActivity extends Activity {
     // for testing; must be volatile for test project reading the state
     public boolean is_test; // whether called from OpenCamera.test testing
     public volatile Bitmap gallery_bitmap;
-    public volatile boolean test_low_memory;
-    public volatile boolean test_have_angle;
-    public volatile float test_angle;
     public volatile String test_last_saved_image;
     private SensorManager mSensorManager;
     private Sensor mSensorAccelerometer;
@@ -143,16 +121,11 @@ public class MainActivity extends Activity {
     private SaveLocationHistory save_location_history_saf; // save location for SAF (only initialised when SAF is used)
     private boolean saf_dialog_from_preferences; // if a SAF dialog is opened, this records whether we opened it from the Preferences
     private boolean camera_in_background; // whether the camera is covered by a fragment/dialog (such as settings or folder picker)
-    private GestureDetector gestureDetector;
-    private boolean screen_is_locked; // whether screen is "locked" - this is Open Camera's own lock to guard against accidental presses, not the standard Android lock
     private ValueAnimator gallery_save_anim;
     private SoundPool sound_pool;
     private SparseIntArray sound_ids;
     private TextToSpeech textToSpeech;
-    private boolean textToSpeechSuccess;
     private int audio_noise_sensitivity = -1;
-    private SpeechRecognizer speechRecognizer;
-    private boolean speechRecognizerIsStarted;
     private boolean block_startup_toast = false; // used when returning from Settings/Popup - if we're displaying a toast anyway, don't want to display the info toast too
     // for audio "noise" trigger option
     private int last_level = -1;
@@ -160,63 +133,6 @@ public class MainActivity extends Activity {
     private long time_last_audio_trigger_photo = -1;
     private Handler immersive_timer_handler = null;
     private Runnable immersive_timer_runnable = null;
-
-    private static double seekbarScaling(double frac) {
-        // For various seekbars, we want to use a non-linear scaling, so user has more control over smaller values
-        return (Math.pow(100.0, frac) - 1.0) / 99.0;
-    }
-
-    private static double seekbarScalingInverse(double scaling) {
-        return Math.log(99.0 * scaling + 1.0) / Math.log(100.0);
-    }
-
-    private static double exponentialScaling(double frac, double min, double max) {
-        /* We use S(frac) = A * e^(s * frac)
-		 * We want S(0) = min, S(1) = max
-		 * So A = min
-		 * and Ae^s = max
-		 * => s = ln(max/min)
-		 */
-        double s = Math.log(max / min);
-        return min * Math.exp(s * frac);
-    }
-
-//	public void zoomIn() {
-//		mainUI.changeSeekbar(R.id.zoom_seekbar, -1);
-//	}
-//
-//	public void zoomOut() {
-//		mainUI.changeSeekbar(R.id.zoom_seekbar, 1);
-//	}
-//
-//	public void changeExposure(int change) {
-//		mainUI.changeSeekbar(R.id.exposure_seekbar, change);
-//	}
-//
-//	public void changeISO(int change) {
-//		mainUI.changeSeekbar(R.id.iso_seekbar, change);
-//	}
-//
-//	public void changeFocusDistance(int change) {
-//		mainUI.changeSeekbar(R.id.focus_seekbar, change);
-//	}
-
-    private static double exponentialScalingInverse(double value, double min, double max) {
-        double s = Math.log(max / min);
-        return Math.log(value / min) / s;
-    }
-
-    static private void putBundleExtra(Bundle bundle, String key, List<String> values) {
-        if (values != null) {
-            String[] values_arr = new String[values.size()];
-            int i = 0;
-            for (String value : values) {
-                values_arr[i] = value;
-                i++;
-            }
-            bundle.putStringArray(key, values_arr);
-        }
-    }
 
     public static String getDonateLink() {
         return "https://play.google.com/store/apps/details?id=harman.mark.donation";
@@ -370,8 +286,6 @@ public class MainActivity extends Activity {
         if (MyDebug.LOG)
             Log.d(TAG, "onCreate: time after setting gallery long click listener: " + (System.currentTimeMillis() - debug_time));
 
-        // listen for gestures
-        gestureDetector = new GestureDetector(this, new MyGestureDetector());
         if (MyDebug.LOG)
             Log.d(TAG, "onCreate: time after creating gesture detector: " + (System.currentTimeMillis() - debug_time));
 
@@ -488,28 +402,6 @@ public class MainActivity extends Activity {
         if (MyDebug.LOG)
             Log.d(TAG, "onCreate: time after preloading icons: " + (System.currentTimeMillis() - debug_time));
 
-        // initialise text to speech engine
-        textToSpeechSuccess = false;
-        // run in separate thread so as to not delay startup time
-        new Thread(new Runnable() {
-            public void run() {
-                textToSpeech = new TextToSpeech(MainActivity.this, new TextToSpeech.OnInitListener() {
-                    @Override
-                    public void onInit(int status) {
-                        if (MyDebug.LOG)
-                            Log.d(TAG, "TextToSpeech initialised");
-                        if (status == TextToSpeech.SUCCESS) {
-                            textToSpeechSuccess = true;
-                            if (MyDebug.LOG)
-                                Log.d(TAG, "TextToSpeech succeeded");
-                        } else {
-                            if (MyDebug.LOG)
-                                Log.d(TAG, "TextToSpeech failed");
-                        }
-                    }
-                });
-            }
-        }).start();
 
         if (MyDebug.LOG)
             Log.d(TAG, "onCreate: total time for Activity startup: " + (System.currentTimeMillis() - debug_time));
@@ -788,11 +680,6 @@ public class MainActivity extends Activity {
         mSensorManager.registerListener(magneticListener, mSensorMagnetic, SensorManager.SENSOR_DELAY_NORMAL);
         orientationEventListener.enable();
 
-        initLocation();
-        initSound();
-        loadSound(R.raw.beep);
-        loadSound(R.raw.beep_hi);
-
         mainUI.layoutUI();
 
         updateGalleryIcon(); // update in case images deleted whilst idle
@@ -830,10 +717,6 @@ public class MainActivity extends Activity {
         mSensorManager.unregisterListener(accelerometerListener);
         mSensorManager.unregisterListener(magneticListener);
         orientationEventListener.disable();
-        applicationInterface.getLocationSupplier().freeLocationListeners();
-        applicationInterface.getGyroSensor().stopRecording();
-        releaseSound();
-        applicationInterface.clearLastImages(); // this should happen when pausing the preview, but call explicitly just to be safe
         preview.onPause();
         if (MyDebug.LOG) {
             Log.d(TAG, "onPause: total time to pause: " + (System.currentTimeMillis() - debug_time));
@@ -925,10 +808,6 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() {
         final MyPreferenceFragment fragment = getPreferenceFragment();
-        if (screen_is_locked) {
-            preview.showToast(screen_locked_toast, R.string.screen_is_locked);
-            return;
-        }
         if (fragment != null) {
             if (MyDebug.LOG)
                 Log.d(TAG, "close settings");
@@ -1644,18 +1523,6 @@ public class MainActivity extends Activity {
         save_location_history_saf.clearFolderHistory(getStorageUtils().getSaveLocationSAF());
     }
 
-    public void clickedShare(View view) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "clickedShare");
-        applicationInterface.shareLastImage();
-    }
-
-    public void clickedTrash(View view) {
-        if (MyDebug.LOG)
-            Log.d(TAG, "clickedTrash");
-        applicationInterface.trashLastImage();
-    }
-
     /**
      * User has pressed the take picture button, or done an equivalent action to request this (e.g.,
      * volume buttons, audio trigger).
@@ -1667,19 +1534,6 @@ public class MainActivity extends Activity {
     public void takePicture(boolean photo_snapshot) {
         if (MyDebug.LOG)
             Log.d(TAG, "takePicture");
-
-        if (test_panorama) {
-            if (applicationInterface.getGyroSensor().isRecording()) {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "panorama complete");
-                applicationInterface.stopPanorama();
-                return;
-            } else {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "start panorama");
-                applicationInterface.startPanorama();
-            }
-        }
 
         this.takePicturePressed(photo_snapshot);
     }
@@ -1693,55 +1547,7 @@ public class MainActivity extends Activity {
         if (MyDebug.LOG)
             Log.d(TAG, "takePicturePressed");
 
-//		closePopup();
-
-        if (applicationInterface.getGyroSensor().isRecording()) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "set next panorama point");
-            applicationInterface.setNextPanoramaPoint();
-        }
-
         this.preview.takePicturePressed(photo_snapshot);
-    }
-
-    /**
-     * Lock the screen - this is Open Camera's own lock to guard against accidental presses,
-     * not the standard Android lock.
-     */
-    void lockScreen() {
-        findViewById(R.id.locker).setOnTouchListener(new View.OnTouchListener() {
-            @SuppressLint("ClickableViewAccessibility")
-            @Override
-            public boolean onTouch(View arg0, MotionEvent event) {
-                return gestureDetector.onTouchEvent(event);
-                //return true;
-            }
-        });
-        screen_is_locked = true;
-    }
-
-    /**
-     * Unlock the screen (see lockScreen()).
-     */
-    void unlockScreen() {
-        findViewById(R.id.locker).setOnTouchListener(null);
-        screen_is_locked = false;
-    }
-
-//	public boolean supportsExposureButton() {
-//		if( preview.getCameraController() == null )
-//			return false;
-//    	SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-////		String iso_value = sharedPreferences.getString(PreferenceKeys.ISOPreferenceKey, preview.getCameraController().getDefaultISO());
-////		boolean manual_iso = !iso_value.equals("auto");
-//		return preview.supportsExposures() || (manual_iso && preview.supportsISORange() );
-//	}
-
-    /**
-     * Whether the screen is locked (see lockScreen()).
-     */
-    public boolean isScreenLocked() {
-        return screen_is_locked;
     }
 
     @Override
@@ -1819,7 +1625,6 @@ public class MainActivity extends Activity {
         this.supports_force_video_4k = false;
     }
 
-
     /**
      * Return free memory in MB.
      */
@@ -1874,10 +1679,6 @@ public class MainActivity extends Activity {
 
     public TextFormatter getTextFormatter() {
         return this.textFormatter;
-    }
-
-    public LocationSupplier getLocationSupplier() {
-        return this.applicationInterface.getLocationSupplier();
     }
 
     public StorageUtils getStorageUtils() {
@@ -1960,36 +1761,12 @@ public class MainActivity extends Activity {
                 toast_string += "\n" + getResources().getString(R.string.preference_auto_stabilise);
                 simple = false;
             }
-//			String photo_mode_string = null;
-//			MyApplicationInterface.PhotoMode photo_mode = applicationInterface.getPhotoMode();
-//			if( photo_mode == MyApplicationInterface.PhotoMode.DRO ) {
-//				photo_mode_string = getResources().getString(R.string.photo_mode_dro);
-//			}
-//			else if( photo_mode == MyApplicationInterface.PhotoMode.HDR ) {
-//				photo_mode_string = getResources().getString(R.string.photo_mode_hdr);
-//			}
-//			else if( photo_mode == MyApplicationInterface.PhotoMode.ExpoBracketing ) {
-//				photo_mode_string = getResources().getString(R.string.photo_mode_expo_bracketing_full);
-//			}
-//			if( photo_mode_string != null ) {
-//				toast_string += "\n" + getResources().getString(R.string.photo_mode) + ": " + photo_mode_string;
-//				simple = false;
-//			}
         }
         if (applicationInterface.getFaceDetectionPref()) {
             // important so that the user realises why touching for focus/metering areas won't work - easy to forget that face detection has been turned on!
             toast_string += "\n" + getResources().getString(R.string.preference_face_detection);
             simple = false;
         }
-//		String iso_value = sharedPreferences.getString(PreferenceKeys.ISOPreferenceKey, camera_controller.getDefaultISO());
-//		if( !iso_value.equals(camera_controller.getDefaultISO()) ) {
-//			toast_string += "\nISO: " + iso_value;
-//			if( preview.supportsExposureTime() ) {
-//				long exposure_time_value = sharedPreferences.getLong(PreferenceKeys.ExposureTimePreferenceKey, camera_controller.getDefaultExposureTime());
-//				toast_string += " " + preview.getExposureTimeString(exposure_time_value);
-//			}
-//			simple = false;
-//		}
         int current_exposure = camera_controller.getExposureCompensation();
         if (current_exposure != 0) {
             toast_string += "\n" + preview.getExposureCompensationString(current_exposure);
@@ -2046,9 +1823,6 @@ public class MainActivity extends Activity {
                 simple = false;
             }
         }
-		/*if( audio_listener != null ) {
-			toast_string += "\n" + getResources().getString(R.string.preference_audio_noise_control);
-		}*/
 
         if (MyDebug.LOG) {
             Log.d(TAG, "toast_string: " + toast_string);
@@ -2058,82 +1832,6 @@ public class MainActivity extends Activity {
             preview.showToast(switch_video_toast, toast_string);
     }
 
-    private void initLocation() {
-        if (MyDebug.LOG)
-            Log.d(TAG, "initLocation");
-        if (!applicationInterface.getLocationSupplier().setupLocationListener()) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "location permission not available, so request permission");
-            requestLocationPermission();
-        }
-    }
-
-    @SuppressWarnings("deprecation")
-    private void initSound() {
-        if (sound_pool == null) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "create new sound_pool");
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                AudioAttributes audio_attributes = new AudioAttributes.Builder()
-                        .setLegacyStreamType(AudioManager.STREAM_SYSTEM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build();
-                sound_pool = new SoundPool.Builder()
-                        .setMaxStreams(1)
-                        .setAudioAttributes(audio_attributes)
-                        .build();
-            } else {
-                sound_pool = new SoundPool(1, AudioManager.STREAM_SYSTEM, 0);
-            }
-            sound_ids = new SparseIntArray();
-        }
-    }
-
-    private void releaseSound() {
-        if (sound_pool != null) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "release sound_pool");
-            sound_pool.release();
-            sound_pool = null;
-            sound_ids = null;
-        }
-    }
-
-    // must be called before playSound (allowing enough time to load the sound)
-    private void loadSound(int resource_id) {
-        if (sound_pool != null) {
-            if (MyDebug.LOG)
-                Log.d(TAG, "loading sound resource: " + resource_id);
-            int sound_id = sound_pool.load(this, resource_id, 1);
-            if (MyDebug.LOG)
-                Log.d(TAG, "    loaded sound: " + sound_id);
-            sound_ids.put(resource_id, sound_id);
-        }
-    }
-
-    // must call loadSound first (allowing enough time to load the sound)
-    void playSound(int resource_id) {
-        if (sound_pool != null) {
-            if (sound_ids.indexOfKey(resource_id) < 0) {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "resource not loaded: " + resource_id);
-            } else {
-                int sound_id = sound_ids.get(resource_id);
-                if (MyDebug.LOG)
-                    Log.d(TAG, "play sound: " + sound_id);
-                sound_pool.play(sound_id, 1.0f, 1.0f, 0, 0, 1);
-            }
-        }
-    }
-
-    // Android 6+ permission handling:
-
-    @SuppressWarnings("deprecation")
-    void speak(String text) {
-        if (textToSpeech != null && textToSpeechSuccess) {
-            textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null);
-        }
-    }
 
     /**
      * Show a "rationale" to the user for needing a particular permission, then request that permission again
@@ -2350,31 +2048,6 @@ public class MainActivity extends Activity {
                 }
                 return;
             }
-            case MY_PERMISSIONS_REQUEST_LOCATION: {
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.length > 0
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    // permission was granted, yay! Do the
-                    // contacts-related task you need to do.
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "location permission granted");
-                    initLocation();
-                } else {
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "location permission denied");
-                    // permission denied, boo! Disable the
-                    // functionality that depends on this permission.
-                    // for location, seems best to turn the option back off
-                    if (MyDebug.LOG)
-                        Log.d(TAG, "location permission not available, so switch location off");
-                    preview.showToast(null, R.string.permission_location_not_available);
-                    SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(this);
-                    SharedPreferences.Editor editor = settings.edit();
-                    editor.putBoolean(PreferenceKeys.LocationPreferenceKey, false);
-                    editor.apply();
-                }
-                return;
-            }
             default: {
                 if (MyDebug.LOG)
                     Log.e(TAG, "unknown requestCode " + requestCode);
@@ -2496,43 +2169,4 @@ public class MainActivity extends Activity {
         }
     }
 
-    /**
-     * Listen for gestures.
-     * Doing a swipe will unlock the screen (see lockScreen()).
-     */
-    private class MyGestureDetector extends SimpleOnGestureListener {
-        @Override
-        public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
-            try {
-                if (MyDebug.LOG)
-                    Log.d(TAG, "from " + e1.getX() + " , " + e1.getY() + " to " + e2.getX() + " , " + e2.getY());
-                final ViewConfiguration vc = ViewConfiguration.get(MainActivity.this);
-                //final int swipeMinDistance = 4*vc.getScaledPagingTouchSlop();
-                final float scale = getResources().getDisplayMetrics().density;
-                final int swipeMinDistance = (int) (160 * scale + 0.5f); // convert dps to pixels
-                final int swipeThresholdVelocity = vc.getScaledMinimumFlingVelocity();
-                if (MyDebug.LOG) {
-                    Log.d(TAG, "from " + e1.getX() + " , " + e1.getY() + " to " + e2.getX() + " , " + e2.getY());
-                    Log.d(TAG, "swipeMinDistance: " + swipeMinDistance);
-                }
-                float xdist = e1.getX() - e2.getX();
-                float ydist = e1.getY() - e2.getY();
-                float dist2 = xdist * xdist + ydist * ydist;
-                float vel2 = velocityX * velocityX + velocityY * velocityY;
-                if (dist2 > swipeMinDistance * swipeMinDistance && vel2 > swipeThresholdVelocity * swipeThresholdVelocity) {
-                    preview.showToast(screen_locked_toast, R.string.unlocked);
-                    unlockScreen();
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-            return false;
-        }
-
-        @Override
-        public boolean onDown(MotionEvent e) {
-            preview.showToast(screen_locked_toast, R.string.screen_is_locked);
-            return true;
-        }
-    }
 }

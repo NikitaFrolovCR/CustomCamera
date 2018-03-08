@@ -2,7 +2,6 @@ package net.sourceforge.opencamera.Preview;
 
 import android.content.Context;
 import android.graphics.Canvas;
-import android.location.Location;
 import android.net.Uri;
 import android.util.Pair;
 import android.view.MotionEvent;
@@ -31,7 +30,6 @@ public interface ApplicationInterface {
 	// methods that request information
 	Context getContext(); // get the application context
 	boolean useCamera2(); // should Android 5's Camera 2 API be used?
-	Location getLocation(); // get current location - null if not available (or you don't care about geotagging)
 	int createOutputVideoMethod(); // return a VIDEOMETHOD_* value to specify how to create a video file
 	File createOutputVideoFile() throws IOException; // will be called if createOutputVideoUsingSAF() returns VIDEOMETHOD_FILE
 	Uri createOutputVideoSAF() throws IOException; // will be called if createOutputVideoUsingSAF() returns VIDEOMETHOD_SAF
@@ -74,8 +72,7 @@ public interface ApplicationInterface {
 	long getTimerPref(); // time in ms for timer (so 0 for off)
 	String getRepeatPref(); // return number of times to repeat photo in a row (as a string), so "1" for default; return "unlimited" for unlimited
 	long getRepeatIntervalPref(); // time in ms between repeat
-	boolean getGeotaggingPref(); // whether to geotag photos
-	boolean getRequireLocationPref(); // if getGeotaggingPref() returns true, and this method returns true, then phot/video will only be taken if location data is available
+//	boolean getRequireLocationPref(); // if getGeotaggingPref() returns true, and this method returns true, then phot/video will only be taken if location data is available
 	boolean getRecordAudioPref(); // whether to record audio when recording video
 	String getRecordAudioChannelsPref(); // either "audio_default", "audio_mono" or "audio_stereo"
 	String getRecordAudioSourcePref(); // "audio_src_camcorder" is recommended, but other options are: "audio_src_mic", "audio_src_default", "audio_src_voice_communication"; see corresponding values in android.media.MediaRecorder.AudioSource
@@ -84,12 +81,6 @@ public interface ApplicationInterface {
 	// Camera2 only modes:
 	long getExposureTimePref(); // only called if getISOPref() is not "default"
 	float getFocusDistancePref();
-//	boolean isExpoBracketingPref(); // whether to enable burst photos with expo bracketing
-//    int getExpoBracketingNImagesPref(); // how many images to take for exposure bracketing
-//    double getExpoBracketingStopsPref(); // stops per image for exposure bracketing
-//	boolean getOptimiseAEForDROPref(); // see CameraController doc for setOptimiseAEForDRO().
-//	boolean isCameraBurstPref(); // whether to shoot the camera in burst mode (n.b., not the same as the "auto-repeat" burst)
-	boolean isRawPref(); // whether to enable RAW photos
 	boolean useCamera2FakeFlash(); // whether to enable CameraController.setUseCamera2FakeFlash() for Camera2 API
 	boolean useCamera2FastBurst(); // whether to enable Camera2's captureBurst() for faster taking of expo-bracketing photos (generally should be true, but some devices have problems with captureBurst())
 
@@ -105,18 +96,14 @@ public interface ApplicationInterface {
 	void stoppedVideo(final int video_method, final Uri uri, final String filename); // called after video recording stopped (uri/filename will be null if video is corrupt or not created); will be called iff startedVideo() was called
 	void onFailedStartPreview(); // called if failed to start camera preview
 	void onCameraError(); // called if the camera closes due to serious error.
-	void onPhotoError(); // callback for failing to take a photo
 	void onVideoInfo(int what, int extra); // callback for info when recording video (see MediaRecorder.OnInfoListener)
 	void onVideoError(int what, int extra); // callback for errors when recording video (see MediaRecorder.OnErrorListener)
 	void onVideoRecordStartError(VideoProfile profile); // callback for video recording failing to start
 	void onVideoRecordStopError(VideoProfile profile); // callback for video recording being corrupted
 	void onFailedReconnectError(); // failed to reconnect camera after stopping video recording
 	void onFailedCreateVideoFileError(); // callback if unable to create file for recording video
-	void hasPausedPreview(boolean paused); // called when the preview is paused or unpaused (due to getPausePreviewPref())
 	void cameraInOperation(boolean in_operation, boolean is_video); // called when the camera starts/stops being operation (taking photos or recording video, including if preview is paused after taking a photo), use to disable GUI elements during camera operation
-	void turnFrontScreenFlashOn(); // called when front-screen "flash" required (for modes flash_frontscreen_auto, flash_frontscreen_on); the application should light up the screen, until cameraInOperation(false) is called
 	void cameraClosed();
-	void timerBeep(long remaining_time); // n.b., called once per second on timer countdown - so application can beep, or do whatever it likes
 
 	// methods that request actions
 	void layoutUI(); // application should layout UI that's on top of the preview
@@ -133,8 +120,6 @@ public interface ApplicationInterface {
 	void setWhiteBalancePref(String white_balance);
 	void clearWhiteBalancePref();
 	void setWhiteBalanceTemperaturePref(int white_balance_temperature);
-//	void setISOPref(String iso);
-//	void clearISOPref();
 	void setExposureCompensationPref(int exposure);
 	void clearExposureCompensationPref();
 	void setCameraResolutionPref(int width, int height);
@@ -145,7 +130,6 @@ public interface ApplicationInterface {
 	void requestRecordAudioPermission(); // for Android 6+: called when switching to (or starting up in) video mode, but RECORD_AUDIO permission not available
 	// Camera2 only modes:
 	void setExposureTimePref(long exposure_time);
-	void clearExposureTimePref();
 	void setFocusDistancePref(float focus_distance);
 	
 	// callbacks

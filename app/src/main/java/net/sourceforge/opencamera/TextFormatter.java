@@ -1,11 +1,8 @@
 package net.sourceforge.opencamera;
 
 import android.content.Context;
-import android.location.Location;
-import android.util.Log;
 
 import java.text.DateFormat;
-import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -13,10 +10,8 @@ import java.util.Locale;
 /** Handles various text formatting options, used for photo stamp and video subtitles.
  */
 public class TextFormatter {
-    private static final String TAG = "TextFormatter";
 
     private final Context context;
-    private final DecimalFormat decimalFormat = new DecimalFormat("#0.0");
 
     TextFormatter(Context context) {
         this.context = context;
@@ -65,41 +60,6 @@ public class TextFormatter {
             }
         }
         return time_stamp;
-    }
-
-    /** Formats the GPS information according to the user preference_stamp_gpsformat preference_stamp_timeformat.
-     *  Returns "" if preference_stamp_gpsformat is "preference_stamp_gpsformat_none", or both store_location and
-     *  store_geo_direction are false.
-     */
-    public String getGPSString(String preference_stamp_gpsformat, boolean store_location, Location location, boolean store_geo_direction, double geo_direction) {
-        String gps_stamp = "";
-        if( !preference_stamp_gpsformat.equals("preference_stamp_gpsformat_none") ) {
-            if( store_location ) {
-                if( MyDebug.LOG )
-                    Log.d(TAG, "location: " + location);
-                if( preference_stamp_gpsformat.equals("preference_stamp_gpsformat_dms") )
-                    gps_stamp += LocationSupplier.locationToDMS(location.getLatitude()) + ", " + LocationSupplier.locationToDMS(location.getLongitude());
-                else
-                    gps_stamp += Location.convert(location.getLatitude(), Location.FORMAT_DEGREES) + ", " + Location.convert(location.getLongitude(), Location.FORMAT_DEGREES);
-                if( location.hasAltitude() ) {
-                    gps_stamp += ", " + decimalFormat.format(location.getAltitude()) + context.getResources().getString(R.string.metres_abbreviation);
-                }
-            }
-            if( store_geo_direction ) {
-                float geo_angle = (float)Math.toDegrees(geo_direction);
-                if( geo_angle < 0.0f ) {
-                    geo_angle += 360.0f;
-                }
-                if( MyDebug.LOG )
-                    Log.d(TAG, "geo_angle: " + geo_angle);
-                if( gps_stamp.length() > 0 )
-                    gps_stamp += ", ";
-                gps_stamp += "" + Math.round(geo_angle) + (char)0x00B0;
-            }
-        }
-        if( MyDebug.LOG )
-            Log.d(TAG, "gps_stamp: " + gps_stamp);
-        return gps_stamp;
     }
 
     public static String formatTimeMS(long time_ms) {
