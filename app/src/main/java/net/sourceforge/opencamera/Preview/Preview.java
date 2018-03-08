@@ -4006,11 +4006,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 				}
 			}
 	    	this.setFocusValue(focus_value, auto_focus);
-
-	    	if( save ) {
-				// now save
-	    		applicationInterface.setFocusPref(focus_value, is_video);
-	    	}
 		}
 	}
 	
@@ -4155,45 +4150,7 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
     	// make sure that preview running (also needed to hide trash/share icons)
         this.startCameraPreview();
 
-//		if( photo_snapshot ) {
-//			// go straight to taking a photo, ignore timer or burst options
-//			takePicture(false, photo_snapshot);
-//			return;
-//		}
-
-//		long timer_delay = applicationInterface.getTimerPref();
-//
-//		String burst_mode_value = applicationInterface.getRepeatPref();
-//		if( burst_mode_value.equals("unlimited") ) {
-//    		if( MyDebug.LOG )
-//    			Log.d(TAG, "unlimited burst");
-//			remaining_burst_photos = -1;
-//		}
-//		else {
-//			int n_burst;
-//			try {
-//				n_burst = Integer.parseInt(burst_mode_value);
-//	    		if( MyDebug.LOG )
-//	    			Log.d(TAG, "n_burst: " + n_burst);
-//			}
-//	        catch(NumberFormatException e) {
-//	    		if( MyDebug.LOG )
-//	    			Log.e(TAG, "failed to parse preference_burst_mode value: " + burst_mode_value);
-//	    		e.printStackTrace();
-//	    		n_burst = 1;
-//	        }
-//			remaining_burst_photos = n_burst-1;
-//		}
-//
-//		if( timer_delay == 0 ) {
-//			takePicture(false, photo_snapshot);
-//		}
-//		else {
-//			takePictureOnTimer(timer_delay, false);
-//		}
 		startVideoRecording(true);
-//		if( MyDebug.LOG )
-//			Log.d(TAG, "takePicturePressed exit");
 	}
 	
 	private void takePictureOnTimer(final long timer_delay, boolean repeated) {
@@ -4223,24 +4180,6 @@ public class Preview implements SurfaceHolder.Callback, TextureView.SurfaceTextu
 				});
 			}
 		}
-////		take_photo_time = System.currentTimeMillis() + timer_delay;
-//		if( MyDebug.LOG )
-//			Log.d(TAG, "take photo at: " + take_photo_time);
-//		/*if( !repeated ) {
-//			showToast(take_photo_toast, R.string.started_timer);
-//		}*/
-////    	takePictureTimer.schedule(takePictureTimerTask = new TakePictureTimerTask(), timer_delay);
-//
-//		class BeepTimerTask extends TimerTask {
-//			long remaining_time = timer_delay;
-//			public void run() {
-//				if( remaining_time > 0 ) { // check in case this isn't cancelled by time we take the photo
-//					applicationInterface.timerBeep(remaining_time);
-//				}
-//				remaining_time -= 1000;
-//			}
-//		}
-////    	beepTimer.schedule(beepTimerTask = new BeepTimerTask(), 0, 1000);
 	}
 	
 	private void flashVideo() {

@@ -958,12 +958,10 @@ public class MyApplicationInterface implements ApplicationInterface {
 		if( sharedPreferences.getBoolean(PreferenceKeys.getLockVideoPreferenceKey(), false) ) {
 			main_activity.lockScreen();
 		}
-		main_activity.stopAudioListeners(); // important otherwise MediaRecorder will fail to start() if we have an audiolistener! Also don't want to have the speech recognizer going off
 		ImageButton view = (ImageButton)main_activity.findViewById(R.id.take_photo);
 		view.setImageResource(R.drawable.take_video_recording);
 		view.setContentDescription( getContext().getResources().getString(R.string.stop_video) );
 		view.setTag(R.drawable.take_video_recording); // for testing
-//		main_activity.getMainUI().destroyPopup(); // as the available popup options change while recording video
 	}
 
 	@Override
@@ -976,12 +974,6 @@ public class MyApplicationInterface implements ApplicationInterface {
 				pauseVideoButton.setVisibility(View.VISIBLE);
 			}
 			main_activity.getMainUI().setPauseVideoContentDescription();
-		}
-		if( main_activity.getPreview().supportsPhotoVideoRecording() ) {
-			if( !( main_activity.getMainUI().inImmersiveMode() && main_activity.usingKitKatImmersiveModeEverything() ) ) {
-				View takePhotoVideoButton = main_activity.findViewById(R.id.take_photo_when_video_recording);
-				takePhotoVideoButton.setVisibility(View.VISIBLE);
-			}
 		}
 		final int video_method = this.createOutputVideoMethod();
 		boolean dategeo_subtitles = getVideoSubtitlePref().equals("preference_video_subtitle_yes");
@@ -1149,10 +1141,7 @@ public class MyApplicationInterface implements ApplicationInterface {
 		}
 		View pauseVideoButton = main_activity.findViewById(R.id.pause_video);
 		pauseVideoButton.setVisibility(View.GONE);
-		View takePhotoVideoButton = main_activity.findViewById(R.id.take_photo_when_video_recording);
-		takePhotoVideoButton.setVisibility(View.GONE);
 		main_activity.getMainUI().setPauseVideoContentDescription(); // just to be safe
-//		main_activity.getMainUI().destroyPopup(); // as the available popup options change while recording video
 		if( subtitleVideoTimerTask != null ) {
 			subtitleVideoTimerTask.cancel();
 			subtitleVideoTimerTask = null;
@@ -1372,14 +1361,11 @@ public class MyApplicationInterface implements ApplicationInterface {
 	public void hasPausedPreview(boolean paused) {
 		if( MyDebug.LOG )
 			Log.d(TAG, "hasPausedPreview: " + paused);
-	    View shareButton = main_activity.findViewById(R.id.share);
 	    View trashButton = main_activity.findViewById(R.id.trash);
 	    if( paused ) {
-		    shareButton.setVisibility(View.VISIBLE);
 		    trashButton.setVisibility(View.VISIBLE);
 	    }
 	    else {
-			shareButton.setVisibility(View.GONE);
 		    trashButton.setVisibility(View.GONE);
 		    this.clearLastImages();
 	    }
@@ -1416,35 +1402,10 @@ public class MyApplicationInterface implements ApplicationInterface {
 		drawPreview.onCaptureStarted();
 	}
 
-//    @Override
-//	public void onPictureCompleted() {
-//		if( MyDebug.LOG )
-//			Log.d(TAG, "onPictureCompleted");
-//
-//		PhotoMode photo_mode = getPhotoMode();
-//		if( main_activity.getPreview().isVideo() ) {
-//			if( MyDebug.LOG )
-//				Log.d(TAG, "snapshop mode");
-//			// must be in photo snapshot while recording video mode, only support standard photo mode
-//			photo_mode = PhotoMode.Standard;
-//		}
-//		if( photo_mode == PhotoMode.NoiseReduction ) {
-//			boolean image_capture_intent = isImageCaptureIntent();
-//			boolean do_in_background = saveInBackground(image_capture_intent);
-//			imageSaver.finishImageAverage(do_in_background);
-//		}
-//
-//		// call this, so that if pause-preview-after-taking-photo option is set, we remove the "taking photo" border indicator straight away
-//		// also even for normal (not pausing) behaviour, good to remove the border asap
-//    	drawPreview.cameraInOperation(false);
-//    }
-
 	@Override
 	public void cameraClosed() {
 		if( MyDebug.LOG )
 			Log.d(TAG, "cameraClosed");
-//		main_activity.getMainUI().clearSeekBar();
-//		main_activity.getMainUI().destroyPopup(); // need to close popup - and when camera reopened, it may have different settings
 		drawPreview.clearContinuousFocusMove();
 	}
 	
@@ -1484,11 +1445,6 @@ public class MyApplicationInterface implements ApplicationInterface {
 		main_activity.getMainUI().layoutUI();
 	}
 	
-//	@Override
-//	public void multitouchZoom(int new_zoom) {
-//		main_activity.getMainUI().setSeekbarZoom(new_zoom);
-//	}
-
 	@Override
 	public void setCameraIdPref(int cameraId) {
 		this.cameraId = cameraId;
@@ -1501,18 +1457,7 @@ public class MyApplicationInterface implements ApplicationInterface {
 		editor.apply();
     }
 
-    @Override
-    public void setFocusPref(String focus_value, boolean is_video) {
-		SharedPreferences.Editor editor = sharedPreferences.edit();
-		editor.putString(PreferenceKeys.getFocusPreferenceKey(cameraId, is_video), focus_value);
-		editor.apply();
-		// focus may be updated by preview (e.g., when switching to/from video mode)
-    	final int visibility = main_activity.getPreview().getCurrentFocusValue() != null && main_activity.getPreview().getCurrentFocusValue().equals("focus_mode_manual2") ? View.VISIBLE : View.INVISIBLE;
-	    View focusSeekBar = main_activity.findViewById(R.id.focus_seekbar);
-	    focusSeekBar.setVisibility(visibility);
-    }
-
-    @Override
+	@Override
 	public void setVideoPref(boolean is_video) {
 		SharedPreferences.Editor editor = sharedPreferences.edit();
 		editor.putBoolean(PreferenceKeys.IsVideoPreferenceKey, is_video);
@@ -1568,21 +1513,7 @@ public class MyApplicationInterface implements ApplicationInterface {
 		editor.apply();
 	}
 
-//	@Override
-//	public void setISOPref(String iso) {
-//		SharedPreferences.Editor editor = sharedPreferences.edit();
-//		editor.putString(PreferenceKeys.ISOPreferenceKey, iso);
-//		editor.apply();
-//    }
-
-//    @Override
-//	public void clearISOPref() {
-//		SharedPreferences.Editor editor = sharedPreferences.edit();
-//		editor.remove(PreferenceKeys.ISOPreferenceKey);
-//		editor.apply();
-//    }
-	
-    @Override
+	@Override
 	public void setExposureCompensationPref(int exposure) {
 		SharedPreferences.Editor editor = sharedPreferences.edit();
 		editor.putString(PreferenceKeys.ExposurePreferenceKey, "" + exposure);

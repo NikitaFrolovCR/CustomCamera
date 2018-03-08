@@ -125,7 +125,6 @@ public interface ApplicationInterface {
 	// the application can use this information to update its preferences
 	void setCameraIdPref(int cameraId);
 	void setFlashPref(String flash_value);
-	void setFocusPref(String focus_value, boolean is_video);
 	void setVideoPref(boolean is_video);
 	void setSceneModePref(String scene_mode);
 	void clearSceneModePref();
